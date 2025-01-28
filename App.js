@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Button, ActivityIndicator, StyleSheet, Image, TextInput, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, Button, ActivityIndicator, StyleSheet, Image, TextInput, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { MaterialIcons } from 'react-native-vector-icons'; // Importing MaterialIcons
 import * as FileSystem from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
@@ -21,6 +21,8 @@ export default function App() {
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [newFolderName, setNewFolderName] = useState('');
+  const [isRenaming, setIsRenaming] = useState(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -76,6 +78,18 @@ export default function App() {
     setMessage(`Reading document: ${document.name}`);
   };
 
+  const renameFolder = (oldName, newName) => {
+    if (newName && !folders.some(folder => folder.name === newName)) {
+      const updatedFolders = folders.map(folder => 
+        folder.name === oldName ? { ...folder, name: newName } : folder
+      );
+      setFolders(updatedFolders);
+      Alert.alert('Folder renamed successfully!');
+    } else {
+      Alert.alert('Invalid folder name. Please try again.');
+    }
+  };
+
   if (isLoading) {
     return <SplashScreen />;
   }
@@ -95,7 +109,30 @@ export default function App() {
         keyExtractor={(item, index) => index.toString()}
         renderItem={({ item, index }) => (
           <View style={styles.folderContainer}>
-            <Text style={styles.folderName}>{item.name}</Text>
+            {isRenaming === index ? (
+              <>
+                <TextInput
+                  style={styles.input}
+                  placeholder="New folder name"
+                  value={newFolderName}
+                  onChangeText={setNewFolderName}
+                />
+                <TouchableOpacity onPress={() => {
+                  renameFolder(item.name, newFolderName);
+                  setNewFolderName('');
+                  setIsRenaming(null);
+                }}>
+                  <MaterialIcons name="check" size={24} color="#4CAF50" /> 
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={styles.folderRow}>
+                <Text style={styles.folderName}>{item.name}</Text>
+                <TouchableOpacity onPress={() => setIsRenaming(index)}>
+                 <MaterialIcons name="edit" size={24} color="#2196F3" /> 
+                </TouchableOpacity>
+              </View>
+            )}
             <View style={styles.buttonContainer}>
               <TouchableOpacity onPress={() => pickDocument(index)} style={styles.iconButton}>
                 <MaterialIcons name="upload-file" size={24} color="#2196F3" />
@@ -168,9 +205,14 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     width: '100%',
   },
+  folderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   folderName: {
     fontSize: 18,
     fontWeight: 'bold',
+    marginRight: 50,
   },
   buttonContainer: {
     flexDirection: 'row',
