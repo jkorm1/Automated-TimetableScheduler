@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Button, ActivityIndicator, StyleSheet, Image, TextInput, FlatList, TouchableOpacity, Alert } from 'react-native';
-import { MaterialIcons } from 'react-native-vector-icons'; // Importing MaterialIcons
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, Button, ActivityIndicator, StyleSheet, Image, TextInput, FlatList, TouchableOpacity, Alert, Animated } from 'react-native';
+import { MaterialIcons, Ionicons } from 'react-native-vector-icons'; // Importing MaterialIcons
 import * as FileSystem from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Speech from 'expo-speech';
@@ -19,13 +19,27 @@ const HomeScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [folders, setFolders] = useState([]);
   const [folderName, setFolderName] = useState('');
-  const [selectedFolder, setSelectedFolder] = useState(null);
+  const [showFolderInput, setShowFolderInput] = useState(false); 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [isRenaming, setIsRenaming] = useState(null);
   const [destinationFolder, setDestinationFolder] = useState(null);
   const [selectedDocument, setSelectedDocument] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  const searchWidth = useRef(new Animated.Value(0)).current;
+
+  const searchFoldersAndDocuments = (query) => {
+    const lowerCaseQuery = query.toLowerCase();
+    const results = folders.filter(folder => 
+      folder.name.toLowerCase().includes(lowerCaseQuery) || 
+      folder.documents.some(document => document.name.toLowerCase().includes(lowerCaseQuery))
+    );
+    setSearchResults(results);
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -35,6 +49,20 @@ const HomeScreen = ({ navigation }) => {
     return () => clearTimeout(timer); // Cleanup timer on unmount
   }, []);
 
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      searchFoldersAndDocuments(searchQuery);
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchQuery]);
+
+  // ... Remaining code
+  if (isLoading) {
+    return <SplashScreen />;
+  }
+
+
   const navigate = async (document) => {
     navigation.navigate('DocumentScreen', { uri: document.uri, name: document.name });
   };
@@ -43,6 +71,7 @@ const HomeScreen = ({ navigation }) => {
     if (folderName.trim()) {
       setFolders([...folders, { name: folderName, documents: [] }]);
       setFolderName('');
+      setShowFolderInput(false);
       setMessage('Folder created successfully!');
     } else {
       setMessage('Please enter a folder name.');
@@ -130,22 +159,53 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+  const toggleSearch = () => {
+    setIsSearchOpen(!isSearchOpen);
+    Animated.timing(searchWidth, {
+      toValue: isSearchOpen ? 0 : 200,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  };
+
   if (isLoading) {
     return <SplashScreen />;
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Document Reader</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter folder name"
-        value={folderName}
-        onChangeText={setFolderName}
-      />
-      <Button title="Create Folder" onPress={createFolder} color="#4CAF50" />
+     <View style={styles.header}>
+     <Button title="Create Folder" onPress={() => setShowFolderInput(true)} color="#4CAF50" />
+        <View style={styles.searchContainer}>
+          <Animated.View style={[styles.searchInputContainer, { width: searchWidth }]}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </Animated.View>
+          <TouchableOpacity onPress={toggleSearch}>
+            <Ionicons name="search" size={24} color="#000" />
+          </TouchableOpacity>
+        </View>
+        
+      </View>
+      
+      {showFolderInput && (
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter folder name"
+            value={folderName}
+            onChangeText={setFolderName}
+          />
+          <Button title="Submit" onPress={createFolder} color="#4CAF50" />
+        </View>
+      )}
+
       <FlatList
-        data={folders}
+        data={searchQuery.trim() ? searchResults : folders}
         keyExtractor={(item, index) => index.toString()}
         renderItem={({ item, index }) => (
           <View style={styles.folderContainer}>
@@ -253,18 +313,48 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     padding: 20,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 10,
+    marginBottom: 20,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  searchInputContainer: {
+    height: 40,
+    marginLeft: 10,
+    borderColor: 'gray',
+    borderWidth: 1,
+    borderRadius: 20, // Rounded edges
+    overflow: 'hidden',
+  },
+  searchInput: {
+    height: '100%',
+    paddingHorizontal: 10,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 20,
   },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
   input: {
     height: 40,
     borderColor: 'gray',
     borderWidth: 1,
-    marginBottom: 10,
-    width: '100%',
+    borderRadius: 5,
     paddingHorizontal: 10,
+    flex: 1, // This will allow the TextInput to take the remaining space
+    marginRight: 10, // Space between the TextInput and the Button
   },
   folderContainer: {
     marginVertical: 10,
