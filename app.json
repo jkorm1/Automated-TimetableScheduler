@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "DocumentReaderApp",
+    "name": "theartisan",
     "slug": "DocumentReaderApp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -19,10 +19,29 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-firebase-core",
+        {
+          "apiKey": "AIzaSyD-QNi7yuxnBLD-1FwpFjF9mJAPYZcQA4M",
+          "authDomain": "theartisan-5266c.firebaseapp.com",
+          "projectId": "theartisan-5266c",
+          "storageBucket": "theartisan-5266c.appspot.com",
+          "messagingSenderId": "28723580926",
+          "appId": "1:28723580926:web:19792d70acaaabaef0baaf",
+          "measurementId": "G-BSE5571SK1"
+        }
+      ]
+    ]
   }
 }
