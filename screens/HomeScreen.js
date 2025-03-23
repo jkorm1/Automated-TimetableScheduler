@@ -11,6 +11,11 @@ import TimetableScreen from "./TimetableScreen"
 import AttendanceScreen from "./AttendanceScreen"
 import SettingsScreen from "./SettingsScreen"
 import RoomsScreen from "./RoomsScreen"
+import ProfileScreen from "./ProfileScreen"
+import UserManagementScreen from "./admin/UserManagementScreen"
+import GeneratorScreen from "./GeneratorScreen"
+import ProgramManagementScreen from "./admin/ProgramManagementScreen"
+import CourseManagementScreen from "./admin/CourseManagementScreen"
 
 const Tab = createBottomTabNavigator()
 
@@ -62,8 +67,17 @@ const HomeScreen = () => {
           } else if (route.name === "Generator") {
             iconName = focused ? "settings" : "settings-outline"
           } else if (route.name === "Settings") {
+            iconName = focused ? "cog" : "cog-outline"
+          } else if (route.name === "Profile") {
             iconName = focused ? "person" : "person-outline"
+          } else if (route.name === "Users") {
+            iconName = focused ? "people" : "people-outline"
+          }else if (route.name === "Courses") {
+            iconName = focused ? "book" : "book-outline"; // 📖
+          } else if (route.name === "Programs") {
+            iconName = focused ? "school" : "school-outline"; // 🎓
           }
+          
 
           return <Ionicons name={iconName} size={size} color={color} />
         },
@@ -72,14 +86,21 @@ const HomeScreen = () => {
         headerShown: true,
       })}
     >
-      <Tab.Screen name="Dashboard" component={DashboardScreen} initialParams={{ userRole }} />
+      <Tab.Screen name="Dashboard" component={DashboardScreen} initialParams={{ userRole }} options={{ headerShown: false }}  />
       <Tab.Screen name="Timetable" component={TimetableScreen} initialParams={{ userRole }} />
+
       {(userRole === "student" || userRole === "lecturer") && (
         <Tab.Screen name="Attendance" component={AttendanceScreen} initialParams={{ userRole }} />
       )}
-      {userRole === "admin" && <Tab.Screen name="Rooms" component={RoomsScreen} />}
-      {userRole === "admin" && <Tab.Screen name="Generator" component={GeneratorScreen} />}
-      <Tab.Screen name="Settings" component={SettingsScreen} initialParams={{ userRole }} />
+
+      {userRole === "admin" && <Tab.Screen name="Rooms" component={RoomsScreen} options={{ headerShown: false }} />}
+      {userRole === "admin" && <Tab.Screen name="Generator" component={GeneratorScreen} options={{ headerShown: false }} />}
+      {userRole === "admin" && <Tab.Screen name="Users" component={UserManagementScreen} options={{ headerShown: false }} />}
+      {userRole === "admin" && <Tab.Screen name="Courses" component={CourseManagementScreen} options={{ headerShown: false }} />}
+      {userRole === "admin" && <Tab.Screen name="Programs" component={ProgramManagementScreen}  options={{ headerShown: false }}  />}
+
+      <Tab.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
+      <Tab.Screen name="Settings" component={SettingsScreen} initialParams={{ userRole }} options={{ headerShown: false }} />
     </Tab.Navigator>
   )
 }
