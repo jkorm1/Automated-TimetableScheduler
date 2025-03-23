@@ -6,13 +6,13 @@ import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyD-QNi7yuxnBLD-1FwpFjF9mJAPYZcQA4M",
-  authDomain: "theartisan-5266c.firebaseapp.com",
-  projectId: "theartisan-5266c",
-  storageBucket: "theartisan-5266c.appspot.com",
-  messagingSenderId: "28723580926",
-  appId: "1:28723580926:web:19792d70acaaabaef0baaf",
-  measurementId: "G-BSE5571SK1",
+  apiKey: "AIzaSyCqny_T6aLyYHkME9CA1YOYQTAvZLZFWp0",
+  authDomain: "timetablescheduler-28fc8.firebaseapp.com",
+  projectId: "timetablescheduler-28fc8",
+  storageBucket: "timetablescheduler-28fc8.firebasestorage.app",
+  messagingSenderId: "801787141460",
+  appId: "1:801787141460:web:8330b6f945ae35eea07cc1",
+  measurementId: "G-PQF7KG6MJ3"
 };
 
 // Initialize Firebase

@@ -1,64 +1,88 @@
-import { useEffect, useState } from "react"
-import { View, FlatList, StyleSheet, TouchableOpacity, Text } from "react-native"
-import { db } from "../firebaseConfig"
-import { collection, getDocs } from "firebase/firestore"
-import ShopCard from "../components/ShopCard"
+"use client"
 
-export default function HomeScreen({ navigation }) {
-  const [artists, setArtists] = useState([])
+import { useState, useEffect } from "react"
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs"
+import { Ionicons } from "@expo/vector-icons"
+import { auth, db } from "../firebaseConfig"
+import { collection, getDocs, query, where } from "firebase/firestore"
+
+import DashboardScreen from "./DashboardScreen"
+import TimetableScreen from "./TimetableScreen"
+import AttendanceScreen from "./AttendanceScreen"
+import SettingsScreen from "./SettingsScreen"
+import RoomsScreen from "./RoomsScreen"
+
+const Tab = createBottomTabNavigator()
+
+const HomeScreen = () => {
+  const [userRole, setUserRole] = useState("")
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchArtists = async () => {
-      const artistsCollection = collection(db, "artists")
-      const artistSnapshot = await getDocs(artistsCollection)
-      const artistList = artistSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      setArtists(artistList)
+    const fetchUserData = async () => {
+      try {
+        const user = auth.currentUser
+        if (!user) return
+
+        // Get user data from Firestore
+        const userRef = collection(db, "users")
+        const q = query(userRef, where("email", "==", user.email))
+        const querySnapshot = await getDocs(q)
+
+        if (!querySnapshot.empty) {
+          const userData = querySnapshot.docs[0].data()
+          setUserRole(userData.role || "student")
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error)
+      } finally {
+        setLoading(false)
+      }
     }
 
-    fetchArtists()
+    fetchUserData()
   }, [])
 
-  const renderShopCard = ({ item }) => (
-    <ShopCard
-      artist={item}
-      onPress={() => navigation.navigate("ArtistDetail", { artistId: item.id, artistName: item.name })}
-    />
-  )
+  if (loading) return null
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate("MyProfile")}>
-        <Text style={styles.profileButtonText}>My Shop</Text>
-      </TouchableOpacity>
-      <FlatList
-        data={artists}
-        renderItem={renderShopCard}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        contentContainerStyle={styles.listContainer}
-      />
-    </View>
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName
+
+          if (route.name === "Dashboard") {
+            iconName = focused ? "home" : "home-outline"
+          } else if (route.name === "Timetable") {
+            iconName = focused ? "calendar" : "calendar-outline"
+          } else if (route.name === "Attendance") {
+            iconName = focused ? "checkbox" : "checkbox-outline"
+          } else if (route.name === "Rooms") {
+            iconName = focused ? "business" : "business-outline"
+          } else if (route.name === "Generator") {
+            iconName = focused ? "settings" : "settings-outline"
+          } else if (route.name === "Settings") {
+            iconName = focused ? "person" : "person-outline"
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />
+        },
+        tabBarActiveTintColor: "#0066cc",
+        tabBarInactiveTintColor: "gray",
+        headerShown: true,
+      })}
+    >
+      <Tab.Screen name="Dashboard" component={DashboardScreen} initialParams={{ userRole }} />
+      <Tab.Screen name="Timetable" component={TimetableScreen} initialParams={{ userRole }} />
+      {(userRole === "student" || userRole === "lecturer") && (
+        <Tab.Screen name="Attendance" component={AttendanceScreen} initialParams={{ userRole }} />
+      )}
+      {userRole === "admin" && <Tab.Screen name="Rooms" component={RoomsScreen} />}
+      {userRole === "admin" && <Tab.Screen name="Generator" component={GeneratorScreen} />}
+      <Tab.Screen name="Settings" component={SettingsScreen} initialParams={{ userRole }} />
+    </Tab.Navigator>
   )
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f0f0f0",
-  },
-  listContainer: {
-    padding: 10,
-  },
-  profileButton: {
-    backgroundColor: "#007AFF",
-    padding: 10,
-    margin: 10,
-    borderRadius: 5,
-  },
-  profileButtonText: {
-    color: "white",
-    textAlign: "center",
-    fontWeight: "bold",
-  },
-})
+export default HomeScreen
 
