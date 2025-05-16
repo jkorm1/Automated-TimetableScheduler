@@ -30,8 +30,11 @@ import {
   getDoc,
   writeBatch,
 } from "firebase/firestore"
+import { useNavigation } from "@react-navigation/native"
 
 const GeneratorScreen = () => {
+  const navigation = useNavigation()
+  
   // State for programs and courses
   const [programs, setPrograms] = useState([])
   const [selectedProgram, setSelectedProgram] = useState(null)
@@ -48,6 +51,9 @@ const GeneratorScreen = () => {
     preferredStartTime: "08:00",
     preferredEndTime: "18:00",
     allowWeekends: false,
+    spreadCoursesAcrossDays: true,
+    maxSessionsPerDay: 3,
+    respectCreditHours: true,
   })
   
   // State for generation process
@@ -92,36 +98,113 @@ const GeneratorScreen = () => {
     }
   }
 
+  // Fetch lecturers from Firestore
   const fetchLecturers = async () => {
     try {
+      console.log("Starting to fetch lecturers...")
+      setLoading(true)
+      
       const lecturersRef = collection(db, "lecturers")
       const lecturersSnapshot = await getDocs(lecturersRef)
       
-      const lecturersList = []
-      
-      for (const lecturerDoc of lecturersSnapshot.docs) {
-        const lecturerData = lecturerDoc.data()
-        
-        // Get user data for lecturer
-        if (lecturerData.user_id) {
-          const userDoc = await getDoc(doc(db, "users", lecturerData.user_id))
+      console.log(`Found ${lecturersSnapshot.docs.length} lecturer documents in Firestore`)
+
+      const lecturersData = []
+
+      for (const doc of lecturersSnapshot.docs) {
+        try {
+          const lecturerData = doc.data()
           
-          if (userDoc.exists()) {
-            const userData = userDoc.data()
-            
-            lecturersList.push({
-              id: lecturerDoc.id,
-              ...lecturerData,
-              name: userData.name,
-              email: userData.email,
-            })
+          // Skip lecturers without a user_id
+          if (!lecturerData.user_id) {
+            console.log(`Skipping lecturer ${doc.id} - missing user_id field`)
+            continue
           }
+
+          let lecturerName = "Unknown"
+          let lecturerEmail = ""
+          
+          // Get user data for lecturer name
+          try {
+            const userRef = collection(db, "users")
+            const q = query(userRef, where("id", "==", lecturerData.user_id))
+            const userSnapshot = await getDocs(q)
+            
+            if (!userSnapshot.empty) {
+              const userData = userSnapshot.docs[0].data()
+              lecturerName = userData.name || "Unknown"
+              lecturerEmail = userData.email || ""
+            } else {
+              console.log(`No user found for lecturer ${doc.id} with user_id ${lecturerData.user_id}`)
+            }
+          } catch (userError) {
+            console.error(`Error fetching user data for lecturer ${doc.id}:`, userError)
+          }
+
+          // Get courses taught by this lecturer
+          const coursesTaught = []
+          try {
+            const coursesRef = collection(db, "courses")
+            const coursesSnapshot = await getDocs(coursesRef)
+
+            coursesSnapshot.forEach((courseDoc) => {
+              const courseData = courseDoc.data()
+              if (courseData.lecturer_id === lecturerData.user_id) {
+                coursesTaught.push({
+                  id: courseDoc.id,
+                  name: courseData.name || "Unnamed Course",
+                  code: courseData.code || "",
+                  credit_hours: courseData.credit_hours || 3
+                })
+              }
+            })
+          } catch (coursesError) {
+            console.error(`Error fetching courses for lecturer ${doc.id}:`, coursesError)
+          }
+
+          // Ensure unavailable_times is properly handled
+          let unavailableTimes = []
+          if (lecturerData.unavailable_times && Array.isArray(lecturerData.unavailable_times)) {
+            unavailableTimes = lecturerData.unavailable_times
+          } else if (lecturerData.unavailableTimes && Array.isArray(lecturerData.unavailableTimes)) {
+            // Handle case where it might be named differently
+            unavailableTimes = lecturerData.unavailableTimes
+          }
+
+          // Create the lecturer object with all necessary data
+          lecturersData.push({
+            id: doc.id,
+            name: lecturerName,
+            email: lecturerEmail,
+            courses: coursesTaught,
+            unavailableTimes: unavailableTimes,
+            department: lecturerData.department || "",
+            specialization: lecturerData.specialization || "",
+            max_hours_per_week: lecturerData.max_hours_per_week || 20,
+            max_courses: lecturerData.max_courses || 5,
+            user_id: lecturerData.user_id,
+            ...lecturerData
+          })
+        } catch (lecturerError) {
+          console.error(`Error processing lecturer ${doc.id}:`, lecturerError)
         }
       }
+
+      console.log(`Successfully processed ${lecturersData.length} valid lecturers`)
+      setLecturers(lecturersData)
       
-      setLecturers(lecturersList)
+      if (lecturersData.length === 0) {
+        console.warn("No valid lecturers found with user_id field")
+      }
     } catch (error) {
       console.error("Error fetching lecturers:", error)
+      Alert.alert(
+        "Error",
+        "Failed to load lecturers. Please try again later.",
+        [{ text: "OK" }]
+      )
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -135,12 +218,19 @@ const GeneratorScreen = () => {
         roomsList.push({
           id: doc.id,
           ...doc.data(),
+          name: doc.data().name || `Room ${doc.id.substring(0, 4)}`,
+          capacity: doc.data().capacity || 30,
         })
       })
       
+      // Sort rooms by capacity (largest to smallest)
+      roomsList.sort((a, b) => (b.capacity || 0) - (a.capacity || 0))
+      
       setRooms(roomsList)
+      console.log(`Fetched ${roomsList.length} rooms`)
     } catch (error) {
       console.error("Error fetching rooms:", error)
+      Alert.alert("Error", "Failed to load rooms")
     }
   }
 
@@ -152,14 +242,29 @@ const GeneratorScreen = () => {
       
       const coursesList = []
       coursesSnapshot.forEach((doc) => {
+        const courseData = doc.data()
         coursesList.push({
           id: doc.id,
-          ...doc.data(),
+          ...courseData,
+          name: courseData.name || `Course ${doc.id.substring(0, 4)}`,
+          code: courseData.code || "N/A",
+          credit_hours: courseData.credit_hours || 3,
+          year: courseData.year || 1,
+          semester: courseData.semester || 1,
+          expected_students: courseData.expected_students || courseData.enrolled_students || 20,
           selected: true, // Default all courses to be included
         })
       })
       
+      // Sort courses by year, semester, and credit hours
+      coursesList.sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year
+        if (a.semester !== b.semester) return a.semester - b.semester
+        return b.credit_hours - a.credit_hours // Higher credit hours first
+      })
+      
       setCourses(coursesList)
+      console.log(`Fetched ${coursesList.length} courses for program ${programId}`)
     } catch (error) {
       console.error("Error fetching courses:", error)
       Alert.alert("Error", "Failed to load courses for this program")
@@ -209,12 +314,31 @@ const GeneratorScreen = () => {
       return false
     }
     
+    // Check if all selected courses have assigned lecturers
+    const coursesWithoutLecturers = selectedCourses.filter(course => !course.lecturer_id)
+    if (coursesWithoutLecturers.length > 0) {
+      const courseNames = coursesWithoutLecturers.map(c => c.name).join(", ")
+      Alert.alert(
+        "Warning", 
+        `The following courses don't have assigned lecturers: ${courseNames}. Lecturers will be assigned automatically.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Continue", onPress: () => generateTimetableInternal() }
+        ]
+      )
+      return false
+    }
+    
     return true
   }
 
   const generateTimetable = async () => {
-    if (!validateSettings()) return
-    
+    if (validateSettings()) {
+      generateTimetableInternal()
+    }
+  }
+
+  const generateTimetableInternal = async () => {
     try {
       setIsGenerating(true)
       setGenerationProgress(0)
@@ -225,7 +349,7 @@ const GeneratorScreen = () => {
       
       // Step 1: Get selected courses
       const selectedCourses = courses.filter(course => course.selected)
-      setGenerationProgress(10)
+      setGenerationProgress(5)
       setGenerationStep("Analyzing course requirements...")
       
       // Step 2: Create time slots
@@ -233,121 +357,250 @@ const GeneratorScreen = () => {
         ? ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] 
         : ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
       
+      // Parse start and end times
       const startHour = parseInt(settings.preferredStartTime.split(":")[0])
       const endHour = parseInt(settings.preferredEndTime.split(":")[0])
       
-      let timeSlots = []
+      // Generate all possible time slots
+      const timeSlots = []
       for (const day of days) {
         for (let hour = startHour; hour < endHour; hour++) {
+          const startTime = `${hour.toString().padStart(2, "0")}:00`
+          const endTime = `${(hour + 1).toString().padStart(2, "0")}:00`
           timeSlots.push({
             day,
-            startTime: `${hour.toString().padStart(2, "0")}:00`,
-            endTime: `${(hour + 1).toString().padStart(2, "0")}:00`,
+            startTime,
+            endTime,
+            key: `${day}-${startTime}`
           })
         }
       }
       
-      setGenerationProgress(20)
-      setGenerationStep("Allocating rooms and time slots...")
+      setGenerationProgress(10)
+      setGenerationStep("Preparing scheduling constraints...")
       
-      // Step 3: Generate initial timetable
-      let generatedTimetable = []
-      let currentConflicts = []
+      // Step 3: Sort courses by priority
+      // Priority: Higher year > Higher semester > Higher credit hours > More students
+      const prioritizedCourses = [...selectedCourses].sort((a, b) => {
+        if (a.year !== b.year) return b.year - a.year
+        if (a.semester !== b.semester) return b.semester - a.semester
+        if (a.credit_hours !== b.credit_hours) return b.credit_hours - a.credit_hours
+        return (b.expected_students || 0) - (a.expected_students || 0)
+      })
       
-      // Sort rooms by capacity if prioritizing room size
-      const sortedRooms = [...rooms]
-      if (settings.prioritizeRoomSize) {
-        sortedRooms.sort((a, b) => (b.capacity || 0) - (a.capacity || 0))
-      }
+      console.log("Courses sorted by priority:", prioritizedCourses.map(c => `${c.name} (Y${c.year}S${c.semester}, ${c.credit_hours}cr)`))
       
-      // Track lecturer and room assignments
-      const lecturerAssignments = {}
-      const roomAssignments = {}
+      // Step 4: Initialize scheduling data structures
       
-      // Initialize tracking objects
+      // Track which time slots are used for each room
+      const roomSchedule = {}
+      rooms.forEach(room => {
+        roomSchedule[room.id] = {}
+        timeSlots.forEach(slot => {
+          roomSchedule[room.id][slot.key] = false
+        })
+      })
+      
+      // Track which time slots are used for each lecturer
+      const lecturerSchedule = {}
       lecturers.forEach(lecturer => {
-        lecturerAssignments[lecturer.id] = {
-          dailyHours: { Monday: 0, Tuesday: 0, Wednesday: 0, Thursday: 0, Friday: 0 },
-          lastTimeSlot: null,
+        lecturerSchedule[lecturer.id] = {
+          slots: {},
+          dailyHours: {},
+          totalHours: 0,
+          courseCount: 0
         }
-        if (settings.allowWeekends) {
-          lecturerAssignments[lecturer.id].dailyHours.Saturday = 0
-          lecturerAssignments[lecturer.id].dailyHours.Sunday = 0
-        }
-      })
-      
-      timeSlots.forEach(slot => {
-        roomAssignments[`${slot.day}-${slot.startTime}`] = new Set()
-      })
-      
-      setGenerationProgress(30)
-      
-      // Assign courses to time slots and rooms
-      for (const course of selectedCourses) {
-        setGenerationStep(`Scheduling ${course.name || 'course'}...`)
         
-        // Get course details
+        // Initialize slots
+        timeSlots.forEach(slot => {
+          lecturerSchedule[lecturer.id].slots[slot.key] = false
+        })
+        
+        // Initialize daily hours
+        days.forEach(day => {
+          lecturerSchedule[lecturer.id].dailyHours[day] = 0
+        })
+        
+        // Mark unavailable times
+        if (lecturer.unavailableTimes && lecturer.unavailableTimes.length > 0) {
+          lecturer.unavailableTimes.forEach(unavailable => {
+            const key = `${unavailable.day}-${unavailable.time}`
+            lecturerSchedule[lecturer.id].slots[key] = true
+          })
+        }
+      })
+      
+      // Track which time slots are used for each student group (year/semester)
+      const studentGroupSchedule = {}
+      
+      // Initialize student group schedules
+      prioritizedCourses.forEach(course => {
+        const groupKey = `Y${course.year}S${course.semester}`
+        if (!studentGroupSchedule[groupKey]) {
+          studentGroupSchedule[groupKey] = {}
+          timeSlots.forEach(slot => {
+            studentGroupSchedule[groupKey][slot.key] = false
+          })
+        }
+      })
+      
+      // Track course sessions already scheduled
+      const courseSessionsScheduled = {}
+      prioritizedCourses.forEach(course => {
+        courseSessionsScheduled[course.id] = 0
+      })
+      
+      setGenerationProgress(15)
+      setGenerationStep("Allocating courses to time slots...")
+      
+      // Step 5: Generate the timetable
+      const generatedTimetable = []
+      const currentConflicts = []
+      
+      // For each course, calculate how many sessions we need
+      prioritizedCourses.forEach(course => {
+        // Calculate required sessions based on credit hours
+        // Typically 1 credit hour = 1 hour of class time per week
         const creditHours = course.credit_hours || 3
-        const weeklyHours = creditHours
-        const sessionsPerWeek = Math.ceil(weeklyHours / 2) // Assume 2-hour sessions
+        const sessionsNeeded = settings.respectCreditHours ? 
+          Math.ceil(creditHours / 2) : // Assuming 2-hour sessions
+          Math.ceil(creditHours / 3)   // Or 3-hour sessions if not respecting credit hours exactly
         
-        // Get assigned lecturer
-        const lecturerId = course.lecturer_id
-        let lecturer = null
-        if (lecturerId) {
-          lecturer = lecturers.find(l => l.id === lecturerId)
-        } else {
-          // Assign a lecturer with the least load if none assigned
-          if (settings.balanceLecturerLoad) {
-            lecturer = lecturers.reduce((leastBusy, current) => {
-              const leastBusyHours = Object.values(lecturerAssignments[leastBusy.id].dailyHours).reduce((a, b) => a + b, 0)
-              const currentHours = Object.values(lecturerAssignments[current.id].dailyHours).reduce((a, b) => a + b, 0)
-              return currentHours < leastBusyHours ? current : leastBusy
-            }, lecturers[0])
-          } else {
-            lecturer = lecturers[0]
+        course.sessionsNeeded = sessionsNeeded
+        course.sessionsScheduled = 0
+        
+        console.log(`Course ${course.name}: needs ${sessionsNeeded} sessions for ${creditHours} credit hours`)
+      })
+      
+      // Function to find the best lecturer for a course
+      const findBestLecturer = (course) => {
+        // If course already has an assigned lecturer, use that
+        if (course.lecturer_id) {
+          const assignedLecturer = lecturers.find(l => l.user_id === course.lecturer_id)
+          if (assignedLecturer) {
+            return assignedLecturer
           }
         }
         
-        // Schedule each session
-        for (let session = 0; session < sessionsPerWeek; session++) {
+        // Otherwise, find the least busy lecturer
+        if (settings.balanceLecturerLoad) {
+          return lecturers.reduce((leastBusy, current) => {
+            const leastBusyLoad = lecturerSchedule[leastBusy.id].totalHours
+            const currentLoad = lecturerSchedule[current.id].totalHours
+            return currentLoad < leastBusyLoad ? current : leastBusy
+          }, lecturers[0])
+        }
+        
+        // Default to first lecturer if no other criteria
+        return lecturers[0]
+      }
+      
+      // Function to find the best room for a course
+      const findBestRoom = (course, timeSlot) => {
+        // Filter rooms that are available at this time slot
+        const availableRooms = rooms.filter(room => !roomSchedule[room.id][timeSlot.key])
+        
+        if (availableRooms.length === 0) return null
+        
+        // If prioritizing room size, find the smallest room that fits
+        if (settings.prioritizeRoomSize) {
+          // Sort by capacity (smallest to largest)
+          const sortedBySize = [...availableRooms].sort((a, b) => (a.capacity || 0) - (b.capacity || 0))
+          
+          // Find the smallest room that fits the class
+          const expectedStudents = course.expected_students || course.enrolled_students || 20
+          const suitableRoom = sortedBySize.find(room => (room.capacity || 0) >= expectedStudents)
+          
+          return suitableRoom || sortedBySize[sortedBySize.length - 1] // Return largest if none fit
+        }
+        
+        // Otherwise, just return the first available room
+        return availableRooms[0]
+      }
+      
+      // Function to check if a time slot works for a course
+      const isTimeSlotSuitable = (course, timeSlot, lecturer) => {
+        const groupKey = `Y${course.year}S${course.semester}`
+        
+        // Check if student group is already scheduled at this time
+        if (studentGroupSchedule[groupKey][timeSlot.key]) {
+          return false
+        }
+        
+        // Check if lecturer is available
+        if (lecturerSchedule[lecturer.id].slots[timeSlot.key]) {
+          return false
+        }
+        
+        // Check if lecturer has reached max daily hours
+        if (lecturerSchedule[lecturer.id].dailyHours[timeSlot.day] >= settings.maxDailyHours) {
+          return false
+        }
+        
+        // If avoiding back-to-back classes, check adjacent slots
+        if (settings.avoidBackToBack) {
+          // Get hour from time slot
+          const hour = parseInt(timeSlot.startTime.split(":")[0])
+          
+          // Check previous hour
+          const prevHour = `${(hour - 1).toString().padStart(2, "0")}:00`
+          const prevSlotKey = `${timeSlot.day}-${prevHour}`
+          
+          // Check next hour
+          const nextHour = `${(hour + 1).toString().padStart(2, "0")}:00`
+          const nextSlotKey = `${timeSlot.day}-${nextHour}`
+          
+          // If lecturer has class in adjacent slots, avoid this slot
+          if (lecturerSchedule[lecturer.id].slots[prevSlotKey] || 
+              lecturerSchedule[lecturer.id].slots[nextSlotKey]) {
+            return false
+          }
+        }
+        
+        // If spreading courses across days, check if this course already has a session on this day
+        if (settings.spreadCoursesAcrossDays) {
+          const sessionsOnThisDay = generatedTimetable.filter(
+            entry => entry.course_id === course.id && entry.day === timeSlot.day
+          ).length
+          
+          if (sessionsOnThisDay >= settings.maxSessionsPerDay) {
+            return false
+          }
+        }
+        
+        return true
+      }
+      
+      // Schedule each course
+      for (let i = 0; i < prioritizedCourses.length; i++) {
+        const course = prioritizedCourses[i]
+        setGenerationStep(`Scheduling ${course.name} (${i+1}/${prioritizedCourses.length})...`)
+        
+        // Find the best lecturer for this course
+        const lecturer = findBestLecturer(course)
+        
+        // Schedule each session needed for this course
+        for (let session = 0; session < course.sessionsNeeded; session++) {
           let scheduled = false
           
-          // Try to find a suitable time slot and room
+          // Try each time slot
           for (const timeSlot of timeSlots) {
-            // Skip if lecturer already has max daily hours
-            if (lecturerAssignments[lecturer.id].dailyHours[timeSlot.day] >= settings.maxDailyHours) {
-              continue
-            }
-            
-            // Skip if avoiding back-to-back and lecturer just had a class
-            if (settings.avoidBackToBack && 
-                lecturerAssignments[lecturer.id].lastTimeSlot && 
-                lecturerAssignments[lecturer.id].lastTimeSlot.day === timeSlot.day &&
-                lecturerAssignments[lecturer.id].lastTimeSlot.endTime === timeSlot.startTime) {
-              continue
-            }
-            
-            // Find a suitable room
-            for (const room of sortedRooms) {
-              // Skip if room is too small
-              if (settings.prioritizeRoomSize && room.capacity < (course.expected_students || 0)) {
-                continue
-              }
+            // Check if this time slot works
+            if (isTimeSlotSuitable(course, timeSlot, lecturer)) {
+              // Find the best room
+              const room = findBestRoom(course, timeSlot)
               
-              // Check if room is available at this time
-              const timeRoomKey = `${timeSlot.day}-${timeSlot.startTime}`
-              if (!roomAssignments[timeRoomKey].has(room.id)) {
-                // Room is available, schedule the session
+              if (room) {
+                // We found a suitable slot! Schedule the class
                 const timetableEntry = {
                   id: `${course.id}-${session}`,
                   course_id: course.id,
-                  course_name: course.name,
-                  course_code: course.code,
+                  course_name: course.name || "Unnamed Course",
+                  course_code: course.code || "N/A",
                   lecturer_id: lecturer.id,
-                  lecturer_name: lecturer.name,
+                  lecturer_name: lecturer.name || "Unknown",
                   room_id: room.id,
-                  room_name: room.name,
+                  room_name: room.name || "Unknown Room",
                   day: timeSlot.day,
                   start_time: timeSlot.startTime,
                   end_time: timeSlot.endTime,
@@ -355,49 +608,69 @@ const GeneratorScreen = () => {
                   program_name: selectedProgram.name,
                   year: course.year || 1,
                   semester: course.semester || 1,
+                  credit_hours: course.credit_hours || 3,
+                  expected_students: course.expected_students || 20,
                 }
                 
+                // Add to timetable
                 generatedTimetable.push(timetableEntry)
                 
-                // Mark room as occupied for this time slot
-                roomAssignments[timeRoomKey].add(room.id)
+                // Mark resources as used
+                roomSchedule[room.id][timeSlot.key] = true
+                lecturerSchedule[lecturer.id].slots[timeSlot.key] = true
+                lecturerSchedule[lecturer.id].dailyHours[timeSlot.day]++
+                lecturerSchedule[lecturer.id].totalHours++
+                lecturerSchedule[lecturer.id].courseCount++
                 
-                // Update lecturer assignments
-                lecturerAssignments[lecturer.id].dailyHours[timeSlot.day] += 1
-                lecturerAssignments[lecturer.id].lastTimeSlot = timeSlot
+                const groupKey = `Y${course.year}S${course.semester}`
+                studentGroupSchedule[groupKey][timeSlot.key] = true
+                
+                course.sessionsScheduled++
+                courseSessionsScheduled[course.id]++
                 
                 scheduled = true
                 break
               }
             }
-            
-            if (scheduled) break
           }
           
-          // If couldn't schedule, add to conflicts
+          // If couldn't schedule this session, add to conflicts
           if (!scheduled) {
             currentConflicts.push({
               type: "scheduling",
               course_id: course.id,
-              course_name: course.name,
+              course_name: course.name || "Unnamed Course",
               lecturer_id: lecturer.id,
-              lecturer_name: lecturer.name,
-              message: `Could not find a suitable time slot and room for ${course.name} (Session ${session + 1})`,
+              lecturer_name: lecturer.name || "Unknown",
+              message: `Could not schedule session ${session + 1}/${course.sessionsNeeded} for ${course.name}. No suitable time slot found.`,
             })
           }
         }
         
-        setGenerationProgress(30 + (60 * (selectedCourses.indexOf(course) + 1) / selectedCourses.length))
+        // Update progress
+        setGenerationProgress(15 + Math.floor(70 * (i + 1) / prioritizedCourses.length))
       }
       
-      setGenerationProgress(90)
+      setGenerationProgress(85)
       setGenerationStep("Checking for conflicts...")
       
-      // Check for any overlapping classes for the same year/semester
+      // Check for courses that couldn't be fully scheduled
+      prioritizedCourses.forEach(course => {
+        if (course.sessionsScheduled < course.sessionsNeeded) {
+          currentConflicts.push({
+            type: "incomplete",
+            course_id: course.id,
+            course_name: course.name || "Unnamed Course",
+            message: `Only scheduled ${course.sessionsScheduled}/${course.sessionsNeeded} sessions for ${course.name}.`,
+          })
+        }
+      })
+      
+      // Check for any overlapping classes for the same year/semester (double-check)
       const yearSemesterGroups = {}
       
       generatedTimetable.forEach(entry => {
-        const key = `${entry.year}-${entry.semester}`
+        const key = `Y${entry.year}S${entry.semester}-${entry.day}-${entry.start_time}`
         if (!yearSemesterGroups[key]) {
           yearSemesterGroups[key] = []
         }
@@ -405,33 +678,33 @@ const GeneratorScreen = () => {
       })
       
       // Check each group for time conflicts
-      Object.values(yearSemesterGroups).forEach(group => {
-        const timeSlotMap = {}
-        
-        group.forEach(entry => {
-          const key = `${entry.day}-${entry.start_time}`
-          
-          if (timeSlotMap[key]) {
-            currentConflicts.push({
-              type: "overlap",
-              entries: [timeSlotMap[key], entry],
-              message: `Time conflict: ${timeSlotMap[key].course_name} and ${entry.course_name} are scheduled at the same time (${entry.day} ${entry.start_time}) for Year ${entry.year}, Semester ${entry.semester}`,
-            })
-          } else {
-            timeSlotMap[key] = entry
-          }
-        })
+      Object.entries(yearSemesterGroups).forEach(([key, entries]) => {
+        if (entries.length > 1) {
+          currentConflicts.push({
+            type: "overlap",
+            entries: entries,
+            message: `Time conflict: ${entries.length} classes scheduled at the same time (${entries[0].day} ${entries[0].start_time}) for Year ${entries[0].year}, Semester ${entries[0].semester}`,
+          })
+        }
       })
       
-      setGenerationProgress(100)
-      setGenerationStep("Timetable generation complete!")
+      setGenerationProgress(95)
+      setGenerationStep("Finalizing timetable...")
+      
+      // Save the generated timetable
       setTimetable(generatedTimetable)
       setConflicts(currentConflicts)
       
+      console.log(`Generated timetable with ${generatedTimetable.length} entries and ${currentConflicts.length} conflicts`)
+      
+      // If no conflicts, show the preview
       if (currentConflicts.length === 0) {
         setActiveTab("preview")
         setShowTimetable(true)
       }
+      
+      setGenerationProgress(100)
+      setGenerationStep("Timetable generation complete!")
       
     } catch (error) {
       console.error("Error generating timetable:", error)
@@ -465,14 +738,36 @@ const GeneratorScreen = () => {
       for (const entry of timetable) {
         const newEntryRef = doc(collection(db, "timetable"))
         batch.set(newEntryRef, {
-          ...entry,
+          course_id: entry.course_id,
+          program_id: entry.program_id,
+          lecturer_id: entry.lecturer_id,
+          room_id: entry.room_id,
+          day: entry.day,
+          start_time: entry.start_time,
+          end_time: entry.end_time,
           created_at: serverTimestamp(),
         })
       }
       
       await batch.commit()
       
-      Alert.alert("Success", "Timetable saved successfully")
+      Alert.alert(
+        "Success", 
+        "Timetable saved successfully! Would you like to view it now?",
+        [
+          { text: "No", style: "cancel" },
+          { 
+            text: "Yes", 
+            onPress: () => {
+              // Navigate to the timetable screen
+              navigation.navigate("Timetable", { 
+                userRole: "admin", 
+                refresh: true 
+              })
+            }
+          }
+        ]
+      )
     } catch (error) {
       console.error("Error saving timetable:", error)
       Alert.alert("Error", "Failed to save timetable: " + error.message)
@@ -544,7 +839,7 @@ const GeneratorScreen = () => {
         <View style={styles.conflictHeader}>
           <Ionicons name="alert-circle" size={24} color="#cc0000" style={styles.conflictIcon} />
           <Text style={styles.conflictType}>
-            {item.type === "overlap" ? "Time Overlap" : "Scheduling Issue"}
+            {item.type === "overlap" ? "Time Overlap" : item.type === "incomplete" ? "Incomplete Scheduling" : "Scheduling Issue"}
           </Text>
         </View>
         <Text style={styles.conflictMessage}>{item.message}</Text>
@@ -619,7 +914,7 @@ const GeneratorScreen = () => {
       </View>
     )
   }
-
+ 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -764,6 +1059,24 @@ const GeneratorScreen = () => {
                     </View>
                     
                     <View style={styles.settingItem}>
+                      <Text style={styles.settingLabel}>Spread Courses Across Days</Text>
+                      <Switch
+                        value={settings.spreadCoursesAcrossDays}
+                        onValueChange={(value) => updateSetting("spreadCoursesAcrossDays", value)}
+                        trackColor={{ false: "#cccccc", true: "#0066cc" }}
+                      />
+                    </View>
+                    
+                    <View style={styles.settingItem}>
+                      <Text style={styles.settingLabel}>Respect Credit Hours Exactly</Text>
+                      <Switch
+                        value={settings.respectCreditHours}
+                        onValueChange={(value) => updateSetting("respectCreditHours", value)}
+                        trackColor={{ false: "#cccccc", true: "#0066cc" }}
+                      />
+                    </View>
+                    
+                    <View style={styles.settingItem}>
                       <Text style={styles.settingLabel}>Allow Weekend Classes</Text>
                       <Switch
                         value={settings.allowWeekends}
@@ -780,6 +1093,19 @@ const GeneratorScreen = () => {
                         onChangeText={(value) => {
                           const numValue = parseInt(value) || 0
                           updateSetting("maxDailyHours", Math.min(Math.max(numValue, 0), 12))
+                        }}
+                        keyboardType="number-pad"
+                      />
+                    </View>
+                    
+                    <View style={styles.settingItem}>
+                      <Text style={styles.settingLabel}>Max Sessions Per Day Per Course</Text>
+                      <TextInput
+                        style={styles.numberInput}
+                        value={settings.maxSessionsPerDay.toString()}
+                        onChangeText={(value) => {
+                          const numValue = parseInt(value) || 0
+                          updateSetting("maxSessionsPerDay", Math.min(Math.max(numValue, 1), 3))
                         }}
                         keyboardType="number-pad"
                       />

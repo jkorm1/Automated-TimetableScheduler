@@ -17,12 +17,12 @@ import { Ionicons } from "@expo/vector-icons"
 import { createNativeStackNavigator } from "@react-navigation/native-stack"
 import { Picker } from "@react-native-picker/picker"
 import { auth, db } from "../firebaseConfig"
-import { collection, getDocs, query, where } from "firebase/firestore"
+import { collection, getDocs, query, where, doc, getDoc } from "firebase/firestore"
 
 const Stack = createNativeStackNavigator()
 
 const TimetableScreen = ({ route }) => {
-  const { userRole } = route.params
+  const { userRole, refresh } = route.params || { userRole: "student", refresh: false }
 
   return (
     <Stack.Navigator>
@@ -30,7 +30,7 @@ const TimetableScreen = ({ route }) => {
         name="ViewTimetable"
         component={ViewTimetableScreen}
         options={{ headerShown: false }}
-        initialParams={{ userRole }}
+        initialParams={{ userRole, refresh }}
       />
       {userRole === "admin" && (
         <Stack.Screen name="Edit" component={EditTimetableScreen} options={{ title: "Edit Timetable" }} />
@@ -40,7 +40,7 @@ const TimetableScreen = ({ route }) => {
 }
 
 const ViewTimetableScreen = ({ route, navigation }) => {
-  const { userRole } = route.params
+  const { userRole, refresh } = route.params || { userRole: "student", refresh: false }
   const [currentWeek, setCurrentWeek] = useState("Week 1")
   const [selectedProgram, setSelectedProgram] = useState("")
   const [selectedView, setSelectedView] = useState("week") // 'week' or 'day'
@@ -50,32 +50,53 @@ const ViewTimetableScreen = ({ route, navigation }) => {
   const [refreshing, setRefreshing] = useState(false)
 
   // Days of the week
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+  const weekdays = days.slice(0, 5) // Monday to Friday
 
   // Time slots from 8am to 7pm
   const timeSlots = [
-    "8:00 AM",
-    "9:00 AM",
-    "10:00 AM",
-    "11:00 AM",
-    "12:00 PM",
-    "1:00 PM",
-    "2:00 PM",
-    "3:00 PM",
-    "4:00 PM",
-    "5:00 PM",
-    "6:00 PM",
+    "08:00",
+    "09:00",
+    "10:00",
+    "11:00",
+    "12:00",
+    "13:00",
+    "14:00",
+    "15:00",
+    "16:00",
+    "17:00",
+    "18:00",
   ]
+
+  // Format time for display (convert 24h to 12h format)
+  const formatTimeForDisplay = (time) => {
+    if (!time) return ""
+    
+    const [hours, minutes] = time.split(":")
+    const hour = parseInt(hours)
+    
+    if (hour < 12) {
+      return `${hour === 0 ? 12 : hour}:${minutes || "00"} AM`
+    } else {
+      return `${hour === 12 ? 12 : hour - 12}:${minutes || "00"} PM`
+    }
+  }
 
   useEffect(() => {
     fetchTimetableData()
-  }, [])
+  }, [refresh])
 
   const fetchTimetableData = async () => {
     try {
       setLoading(true)
       const user = auth.currentUser
-      if (!user) return
+      if (!user) {
+        console.log("No user logged in")
+        setLoading(false)
+        return
+      }
+
+      console.log("Fetching timetable data for user:", user.uid, "with role:", userRole)
 
       // Fetch programs
       await fetchPrograms()
@@ -89,8 +110,11 @@ const ViewTimetableScreen = ({ route, navigation }) => {
 
         if (!studentSnapshot.empty) {
           const studentData = studentSnapshot.docs[0].data()
+          console.log("Student program:", studentData.program_id)
           setSelectedProgram(studentData.program_id)
           await fetchTimetable(studentData.program_id)
+        } else {
+          console.log("No student data found")
         }
       } else if (userRole === "lecturer") {
         // For lecturers, we'll show their teaching schedule across programs
@@ -98,8 +122,11 @@ const ViewTimetableScreen = ({ route, navigation }) => {
       } else {
         // For admins, show the first program by default
         if (programs.length > 0) {
+          console.log("Admin viewing program:", programs[0].id)
           setSelectedProgram(programs[0].id)
           await fetchTimetable(programs[0].id)
+        } else {
+          console.log("No programs found")
         }
       }
     } catch (error) {
@@ -125,6 +152,7 @@ const ViewTimetableScreen = ({ route, navigation }) => {
         })
       })
 
+      console.log(`Fetched ${programsData.length} programs`)
       setPrograms(programsData)
     } catch (error) {
       console.error("Error fetching programs:", error)
@@ -134,43 +162,99 @@ const ViewTimetableScreen = ({ route, navigation }) => {
   // Fetch timetable for a specific program
   const fetchTimetable = async (programId) => {
     try {
+      console.log("Fetching timetable for program:", programId)
       const timetableRef = collection(db, "timetable")
       const q = query(timetableRef, where("program_id", "==", programId))
       const timetableSnapshot = await getDocs(q)
 
+      console.log(`Found ${timetableSnapshot.docs.length} timetable entries`)
+      
+      if (timetableSnapshot.empty) {
+        setTimetableData([])
+        return
+      }
+
       const timetableEntries = []
+      const courseCache = {}
+      const roomCache = {}
+      const lecturerCache = {}
+      const userCache = {}
 
       for (const doc of timetableSnapshot.docs) {
-        const timetableData = doc.data()
+        try {
+          const timetableData = doc.data()
+          console.log("Processing timetable entry:", doc.id, timetableData)
 
-        // Get course details
-        const courseRef = collection(db, "courses")
-        const courseQuery = query(courseRef, where("id", "==", timetableData.course_id))
-        const courseSnapshot = await getDocs(courseQuery)
+          // Get course details (with caching)
+          let courseData
+          if (courseCache[timetableData.course_id]) {
+            courseData = courseCache[timetableData.course_id]
+          } else {
+            const courseRef = collection(db, "courses")
+            const courseQuery = query(courseRef, where("id", "==", timetableData.course_id))
+            const courseSnapshot = await getDocs(courseQuery)
+            
+            if (!courseSnapshot.empty) {
+              courseData = courseSnapshot.docs[0].data()
+              courseCache[timetableData.course_id] = courseData
+            } else {
+              console.log(`Course not found: ${timetableData.course_id}`)
+              continue
+            }
+          }
 
-        // Get room details
-        const roomRef = collection(db, "rooms")
-        const roomQuery = query(roomRef, where("id", "==", timetableData.room_id))
-        const roomSnapshot = await getDocs(roomQuery)
+          // Get room details (with caching)
+          let roomData
+          if (roomCache[timetableData.room_id]) {
+            roomData = roomCache[timetableData.room_id]
+          } else {
+            const roomRef = collection(db, "rooms")
+            const roomQuery = query(roomRef, where("id", "==", timetableData.room_id))
+            const roomSnapshot = await getDocs(roomQuery)
+            
+            if (!roomSnapshot.empty) {
+              roomData = roomSnapshot.docs[0].data()
+              roomCache[timetableData.room_id] = roomData
+            } else {
+              console.log(`Room not found: ${timetableData.room_id}`)
+              continue
+            }
+          }
 
-        // Get lecturer details
-        const lecturerRef = collection(db, "lecturers")
-        const lecturerQuery = query(lecturerRef, where("id", "==", timetableData.lecturer_id))
-        const lecturerSnapshot = await getDocs(lecturerQuery)
+          // Get lecturer details (with caching)
+          let lecturerData
+          if (lecturerCache[timetableData.lecturer_id]) {
+            lecturerData = lecturerCache[timetableData.lecturer_id]
+          } else {
+            const lecturerRef = collection(db, "lecturers")
+            const lecturerQuery = query(lecturerRef, where("id", "==", timetableData.lecturer_id))
+            const lecturerSnapshot = await getDocs(lecturerQuery)
+            
+            if (!lecturerSnapshot.empty) {
+              lecturerData = lecturerSnapshot.docs[0].data()
+              lecturerCache[timetableData.lecturer_id] = lecturerData
+            } else {
+              console.log(`Lecturer not found: ${timetableData.lecturer_id}`)
+              continue
+            }
+          }
 
-        if (!courseSnapshot.empty && !roomSnapshot.empty && !lecturerSnapshot.empty) {
-          const courseData = courseSnapshot.docs[0].data()
-          const roomData = roomSnapshot.docs[0].data()
-
-          // Get lecturer's user data
-          const lecturerData = lecturerSnapshot.docs[0].data()
-          const userRef = collection(db, "users")
-          const userQuery = query(userRef, where("id", "==", lecturerData.user_id))
-          const userSnapshot = await getDocs(userQuery)
-
+          // Get lecturer's user data (with caching)
           let lecturerName = "Unknown"
-          if (!userSnapshot.empty) {
-            lecturerName = userSnapshot.docs[0].data().name
+          if (lecturerData.user_id) {
+            if (userCache[lecturerData.user_id]) {
+              lecturerName = userCache[lecturerData.user_id].name || "Unknown"
+            } else {
+              const userRef = collection(db, "users")
+              const userQuery = query(userRef, where("id", "==", lecturerData.user_id))
+              const userSnapshot = await getDocs(userQuery)
+              
+              if (!userSnapshot.empty) {
+                const userData = userSnapshot.docs[0].data()
+                userCache[lecturerData.user_id] = userData
+                lecturerName = userData.name || "Unknown"
+              }
+            }
           }
 
           // Assign a color based on course
@@ -185,31 +269,41 @@ const ViewTimetableScreen = ({ route, navigation }) => {
 
           const colorIndex = timetableEntries.length % colors.length
 
+          // Create timetable entry with all required fields
           timetableEntries.push({
             id: doc.id,
             day: timetableData.day,
             startTime: timetableData.start_time,
             endTime: timetableData.end_time,
-            course: courseData.name,
-            room: roomData.name,
-            capacity: roomData.capacity,
-            students: courseData.enrolled_students || 0,
+            course: courseData.name || "Unknown Course",
+            courseCode: courseData.code || "",
+            room: roomData.name || "Unknown Room",
+            capacity: roomData.capacity || 0,
+            students: courseData.enrolled_students || courseData.expected_students || 0,
             lecturer: lecturerName,
             program: programs.find((p) => p.id === programId)?.name || "Unknown Program",
+            year: courseData.year || 1,
+            semester: courseData.semester || 1,
             color: colors[colorIndex],
           })
+        } catch (error) {
+          console.error("Error processing timetable entry:", error)
         }
       }
 
+      console.log(`Processed ${timetableEntries.length} valid timetable entries`)
       setTimetableData(timetableEntries)
     } catch (error) {
       console.error("Error fetching timetable:", error)
+      Alert.alert("Error", "Failed to load timetable. Please try again.")
     }
   }
 
   // Fetch timetable for a specific lecturer
   const fetchLecturerTimetable = async (userId) => {
     try {
+      console.log("Fetching timetable for lecturer with user ID:", userId)
+      
       // Get lecturer ID
       const lecturerRef = collection(db, "lecturers")
       const lecturerQuery = query(lecturerRef, where("user_id", "==", userId))
@@ -217,36 +311,77 @@ const ViewTimetableScreen = ({ route, navigation }) => {
 
       if (!lecturerSnapshot.empty) {
         const lecturerId = lecturerSnapshot.docs[0].id
+        console.log("Found lecturer ID:", lecturerId)
 
         // Get timetable entries for this lecturer
         const timetableRef = collection(db, "timetable")
         const timetableQuery = query(timetableRef, where("lecturer_id", "==", lecturerId))
         const timetableSnapshot = await getDocs(timetableQuery)
 
+        console.log(`Found ${timetableSnapshot.docs.length} timetable entries for lecturer`)
+
         const timetableEntries = []
+        const courseCache = {}
+        const roomCache = {}
+        const programCache = {}
 
         for (const doc of timetableSnapshot.docs) {
-          const timetableData = doc.data()
+          try {
+            const timetableData = doc.data()
 
-          // Get course details
-          const courseRef = collection(db, "courses")
-          const courseQuery = query(courseRef, where("id", "==", timetableData.course_id))
-          const courseSnapshot = await getDocs(courseQuery)
+            // Get course details (with caching)
+            let courseData
+            if (courseCache[timetableData.course_id]) {
+              courseData = courseCache[timetableData.course_id]
+            } else {
+              const courseRef = collection(db, "courses")
+              const courseQuery = query(courseRef, where("id", "==", timetableData.course_id))
+              const courseSnapshot = await getDocs(courseQuery)
+              
+              if (!courseSnapshot.empty) {
+                courseData = courseSnapshot.docs[0].data()
+                courseCache[timetableData.course_id] = courseData
+              } else {
+                console.log(`Course not found: ${timetableData.course_id}`)
+                continue
+              }
+            }
 
-          // Get room details
-          const roomRef = collection(db, "rooms")
-          const roomQuery = query(roomRef, where("id", "==", timetableData.room_id))
-          const roomSnapshot = await getDocs(roomQuery)
+            // Get room details (with caching)
+            let roomData
+            if (roomCache[timetableData.room_id]) {
+              roomData = roomCache[timetableData.room_id]
+            } else {
+              const roomRef = collection(db, "rooms")
+              const roomQuery = query(roomRef, where("id", "==", timetableData.room_id))
+              const roomSnapshot = await getDocs(roomQuery)
+              
+              if (!roomSnapshot.empty) {
+                roomData = roomSnapshot.docs[0].data()
+                roomCache[timetableData.room_id] = roomData
+              } else {
+                console.log(`Room not found: ${timetableData.room_id}`)
+                continue
+              }
+            }
 
-          // Get program details
-          const programRef = collection(db, "programs")
-          const programQuery = query(programRef, where("id", "==", timetableData.program_id))
-          const programSnapshot = await getDocs(programQuery)
-
-          if (!courseSnapshot.empty && !roomSnapshot.empty && !programSnapshot.empty) {
-            const courseData = courseSnapshot.docs[0].data()
-            const roomData = roomSnapshot.docs[0].data()
-            const programData = programSnapshot.docs[0].data()
+            // Get program details (with caching)
+            let programData
+            if (programCache[timetableData.program_id]) {
+              programData = programCache[timetableData.program_id]
+            } else {
+              const programRef = collection(db, "programs")
+              const programQuery = query(programRef, where("id", "==", timetableData.program_id))
+              const programSnapshot = await getDocs(programQuery)
+              
+              if (!programSnapshot.empty) {
+                programData = programSnapshot.docs[0].data()
+                programCache[timetableData.program_id] = programData
+              } else {
+                console.log(`Program not found: ${timetableData.program_id}`)
+                continue
+              }
+            }
 
             // Assign a color based on course
             const colors = [
@@ -265,21 +400,30 @@ const ViewTimetableScreen = ({ route, navigation }) => {
               day: timetableData.day,
               startTime: timetableData.start_time,
               endTime: timetableData.end_time,
-              course: courseData.name,
-              room: roomData.name,
-              capacity: roomData.capacity,
-              students: courseData.enrolled_students || 0,
+              course: courseData.name || "Unknown Course",
+              courseCode: courseData.code || "",
+              room: roomData.name || "Unknown Room",
+              capacity: roomData.capacity || 0,
+              students: courseData.enrolled_students || courseData.expected_students || 0,
               lecturer: "You",
-              program: programData.name,
+              program: programData.name || "Unknown Program",
+              year: courseData.year || 1,
+              semester: courseData.semester || 1,
               color: colors[colorIndex],
             })
+          } catch (error) {
+            console.error("Error processing lecturer timetable entry:", error)
           }
         }
 
+        console.log(`Processed ${timetableEntries.length} valid lecturer timetable entries`)
         setTimetableData(timetableEntries)
+      } else {
+        console.log("No lecturer found with user ID:", userId)
       }
     } catch (error) {
       console.error("Error fetching lecturer timetable:", error)
+      Alert.alert("Error", "Failed to load your teaching schedule. Please try again.")
     }
   }
 
@@ -291,7 +435,10 @@ const ViewTimetableScreen = ({ route, navigation }) => {
 
   // Function to get classes for a specific day and time
   const getClassesForTimeSlot = (day, timeSlot) => {
-    return timetableData.filter((cls) => cls.day === day && cls.startTime === timeSlot)
+    return timetableData.filter((cls) => 
+      cls.day === day && 
+      cls.startTime === timeSlot
+    )
   }
 
   // Function to navigate to previous week
@@ -315,100 +462,138 @@ const ViewTimetableScreen = ({ route, navigation }) => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0066cc" />
+        <Text style={styles.loadingText}>Loading timetable...</Text>
       </View>
     )
   }
 
   // Week View Component
-  const WeekView = () => (
-    <ScrollView horizontal style={styles.weekViewContainer}>
-      <View style={styles.weekViewContent}>
-        {/* Header row with days */}
-        <View style={styles.weekHeaderRow}>
-          <View style={styles.timeHeaderCell}></View>
-          {days.map((day) => (
-            <View key={day} style={styles.dayHeaderCell}>
-              <Text style={styles.dayHeaderText}>{day}</Text>
+  const WeekView = () => {
+    // Determine which days to show (weekdays or all days)
+    const displayDays = days.filter(day => 
+      day === "Saturday" || day === "Sunday" 
+        ? timetableData.some(cls => cls.day === day) 
+        : true
+    ).slice(0, 5) // Limit to first 5 days by default
+    
+    return (
+      <ScrollView horizontal style={styles.weekViewContainer}>
+        <View style={styles.weekViewContent}>
+          {/* Header row with days */}
+          <View style={styles.weekHeaderRow}>
+            <View style={styles.timeHeaderCell}></View>
+            {displayDays.map((day) => (
+              <View key={day} style={styles.dayHeaderCell}>
+                <Text style={styles.dayHeaderText}>{day}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Time slots rows */}
+          {timeSlots.map((timeSlot) => (
+            <View key={timeSlot} style={styles.timeRow}>
+              <View style={styles.timeCell}>
+                <Text style={styles.timeText}>{formatTimeForDisplay(timeSlot)}</Text>
+              </View>
+
+              {displayDays.map((day) => {
+                const classes = getClassesForTimeSlot(day, timeSlot)
+                return (
+                  <View key={`${day}-${timeSlot}`} style={styles.dayCell}>
+                    {classes.map((cls) => (
+                      <TouchableOpacity
+                        key={cls.id}
+                        style={[styles.classCard, { backgroundColor: cls.color }]}
+                        onPress={() => (userRole === "admin" ? navigation.navigate("Edit", { classId: cls.id }) : null)}
+                      >
+                        <Text style={styles.classTitle} numberOfLines={1}>
+                          {cls.course}
+                        </Text>
+                        <Text style={styles.classInfo} numberOfLines={1}>
+                          {cls.room}
+                        </Text>
+                        <Text style={styles.classInfo} numberOfLines={1}>
+                          {cls.lecturer}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )
+              })}
             </View>
           ))}
         </View>
-
-        {/* Time slots rows */}
-        {timeSlots.map((timeSlot) => (
-          <View key={timeSlot} style={styles.timeRow}>
-            <View style={styles.timeCell}>
-              <Text style={styles.timeText}>{timeSlot}</Text>
-            </View>
-
-            {days.map((day) => {
-              const classes = getClassesForTimeSlot(day, timeSlot)
-              return (
-                <View key={`${day}-${timeSlot}`} style={styles.dayCell}>
-                  {classes.map((cls) => (
-                    <TouchableOpacity
-                      key={cls.id}
-                      style={[styles.classCard, { backgroundColor: cls.color }]}
-                      onPress={() => (userRole === "admin" ? navigation.navigate("Edit", { classId: cls.id }) : null)}
-                    >
-                      <Text style={styles.classTitle} numberOfLines={1}>
-                        {cls.course}
-                      </Text>
-                      <Text style={styles.classInfo} numberOfLines={1}>
-                        {cls.room}
-                      </Text>
-                      <Text style={styles.classInfo} numberOfLines={1}>
-                        {cls.lecturer}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )
-            })}
-          </View>
-        ))}
-      </View>
-    </ScrollView>
-  )
+      </ScrollView>
+    )
+  }
 
   // Day View Component
-  const DayView = () => (
-    <ScrollView style={styles.dayViewContainer}>
-      {days.map((day) => (
-        <Card key={day} style={styles.dayCard}>
-          <Card.Title title={day} />
-          <Card.Content>
-            {timetableData
-              .filter((cls) => cls.day === day)
-              .sort((a, b) => timeSlots.indexOf(a.startTime) - timeSlots.indexOf(b.startTime))
-              .map((cls) => (
-                <TouchableOpacity
-                  key={cls.id}
-                  style={[styles.dayViewClassCard, { backgroundColor: cls.color }]}
-                  onPress={() => (userRole === "admin" ? navigation.navigate("Edit", { classId: cls.id }) : null)}
-                >
-                  <View style={styles.dayViewClassContent}>
-                    <View>
-                      <Text style={styles.dayViewClassTitle}>{cls.course}</Text>
-                      <Text style={styles.dayViewClassTime}>
-                        {cls.startTime} - {cls.endTime}
-                      </Text>
-                      <Text style={styles.dayViewClassRoom}>{cls.room}</Text>
-                    </View>
-                    <View style={styles.dayViewClassBadge}>
-                      <Text style={styles.dayViewClassBadgeText}>{cls.lecturer}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
+  const DayView = () => {
+    // Only show days that have classes
+    const daysWithClasses = days.filter(day => 
+      timetableData.some(cls => cls.day === day)
+    )
+    
+    return (
+      <ScrollView style={styles.dayViewContainer}>
+        {daysWithClasses.length > 0 ? (
+          daysWithClasses.map((day) => (
+            <Card key={day} style={styles.dayCard}>
+              <Card.Title title={day} />
+              <Card.Content>
+                {timetableData
+                  .filter((cls) => cls.day === day)
+                  .sort((a, b) => {
+                    // Sort by start time
+                    return a.startTime.localeCompare(b.startTime)
+                  })
+                  .map((cls) => (
+                    <TouchableOpacity
+                      key={cls.id}
+                      style={[styles.dayViewClassCard, { backgroundColor: cls.color }]}
+                      onPress={() => (userRole === "admin" ? navigation.navigate("Edit", { classId: cls.id }) : null)}
+                    >
+                      <View style={styles.dayViewClassContent}>
+                        <View style={styles.dayViewClassInfo}>
+                          <Text style={styles.dayViewClassTitle}>{cls.course}</Text>
+                          <Text style={styles.dayViewClassCode}>{cls.courseCode}</Text>
+                          <Text style={styles.dayViewClassTime}>
+                            {formatTimeForDisplay(cls.startTime)} - {formatTimeForDisplay(cls.endTime)}
+                          </Text>
+                          <View style={styles.dayViewClassDetails}>
+                            <Ionicons name="business-outline" size={14} color="#666666" />
+                            <Text style={styles.dayViewClassRoom}>{cls.room}</Text>
+                          </View>
+                          <View style={styles.dayViewClassDetails}>
+                            <Ionicons name="school-outline" size={14} color="#666666" />
+                            <Text style={styles.dayViewClassYear}>Year {cls.year}, Semester {cls.semester}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.dayViewClassBadge}>
+                          <Text style={styles.dayViewClassBadgeText}>{cls.lecturer}</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
 
-            {timetableData.filter((cls) => cls.day === day).length === 0 && (
-              <Text style={styles.emptyDayText}>No classes scheduled for this day.</Text>
-            )}
-          </Card.Content>
-        </Card>
-      ))}
-    </ScrollView>
-  )
+                {timetableData.filter((cls) => cls.day === day).length === 0 && (
+                  <Text style={styles.emptyDayText}>No classes scheduled for this day.</Text>
+                )}
+              </Card.Content>
+            </Card>
+          ))
+        ) : (
+          <View style={styles.noClassesContainer}>
+            <Ionicons name="calendar-outline" size={64} color="#cccccc" />
+            <Text style={styles.noClassesText}>No Classes Scheduled</Text>
+            <Text style={styles.noClassesSubtext}>
+              There are no classes scheduled for this program yet.
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+    )
+  }
 
   return (
     <View style={styles.container}>
@@ -426,9 +611,14 @@ const ViewTimetableScreen = ({ route, navigation }) => {
         </View>
 
         <View style={styles.controls}>
-          {userRole === "admin" && (
+          {userRole === "admin" && programs.length > 0 && (
             <View style={styles.programPicker}>
-              <Picker selectedValue={selectedProgram} onValueChange={handleProgramChange} style={styles.picker}>
+              <Picker 
+                selectedValue={selectedProgram} 
+                onValueChange={handleProgramChange} 
+                style={styles.picker}
+                mode="dropdown"
+              >
                 {programs.map((program) => (
                   <Picker.Item key={program.id} label={program.name} value={program.id} />
                 ))}
@@ -454,24 +644,111 @@ const ViewTimetableScreen = ({ route, navigation }) => {
         </View>
       </View>
 
-      <ScrollView
-        style={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {selectedView === "week" ? <WeekView /> : <DayView />}
-      </ScrollView>
+      {timetableData.length > 0 ? (
+        <ScrollView
+          style={styles.content}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
+          {selectedView === "week" ? <WeekView /> : <DayView />}
+        </ScrollView>
+      ) : (
+        <View style={styles.noTimetableContainer}>
+          <Ionicons name="calendar-outline" size={64} color="#cccccc" />
+          <Text style={styles.noTimetableText}>No Timetable Available</Text>
+          <Text style={styles.noTimetableSubtext}>
+            {userRole === "admin" 
+              ? "Generate a timetable from the Generator screen."
+              : userRole === "lecturer"
+              ? "You don't have any classes scheduled yet."
+              : "No classes have been scheduled for your program yet."}
+          </Text>
+          {userRole === "admin" && (
+            <TouchableOpacity
+              style={styles.generateButton}
+              onPress={() => navigation.navigate("Generator")}
+            >
+              <Text style={styles.generateButtonText}>Go to Generator</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
     </View>
   )
 }
 
 const EditTimetableScreen = ({ route, navigation }) => {
   const { classId } = route.params
+  const [timetableEntry, setTimetableEntry] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  // Implement edit timetable functionality here
+  useEffect(() => {
+    fetchTimetableEntry()
+  }, [])
+
+  const fetchTimetableEntry = async () => {
+    try {
+      setLoading(true)
+      const timetableRef = doc(db, "timetable", classId)
+      const timetableDoc = await getDoc(timetableRef)
+      
+      if (timetableDoc.exists()) {
+        setTimetableEntry(timetableDoc.data())
+      } else {
+        Alert.alert("Error", "Timetable entry not found")
+        navigation.goBack()
+      }
+    } catch (error) {
+      console.error("Error fetching timetable entry:", error)
+      Alert.alert("Error", "Failed to load timetable entry")
+      navigation.goBack()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0066cc" />
+        <Text style={styles.loadingText}>Loading entry details...</Text>
+      </View>
+    )
+  }
 
   return (
     <View style={styles.container}>
-      <Text>Edit Timetable Entry: {classId}</Text>
+      <Card style={styles.editCard}>
+        <Card.Title title="Edit Timetable Entry" />
+        <Card.Content>
+          <Text style={styles.editLabel}>Class ID:</Text>
+          <Text style={styles.editValue}>{classId}</Text>
+          
+          {timetableEntry && (
+            <>
+              <Text style={styles.editLabel}>Day:</Text>
+              <Text style={styles.editValue}>{timetableEntry.day}</Text>
+              
+              <Text style={styles.editLabel}>Time:</Text>
+              <Text style={styles.editValue}>
+                {timetableEntry.start_time} - {timetableEntry.end_time}
+              </Text>
+              
+              <Text style={styles.editLabel}>Course ID:</Text>
+              <Text style={styles.editValue}>{timetableEntry.course_id}</Text>
+              
+              <Text style={styles.editLabel}>Room ID:</Text>
+              <Text style={styles.editValue}>{timetableEntry.room_id}</Text>
+              
+              <Text style={styles.editLabel}>Lecturer ID:</Text>
+              <Text style={styles.editValue}>{timetableEntry.lecturer_id}</Text>
+            </>
+          )}
+          
+          <Text style={styles.editNote}>
+            Note: Full editing functionality will be implemented in a future update.
+          </Text>
+        </Card.Content>
+      </Card>
     </View>
   )
 }
@@ -485,6 +762,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#666666",
   },
   header: {
     padding: 16,
@@ -632,17 +914,37 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
+  dayViewClassInfo: {
+    flex: 1,
+  },
   dayViewClassTitle: {
     fontWeight: "bold",
     fontSize: 16,
   },
+  dayViewClassCode: {
+    fontSize: 12,
+    color: "#666666",
+    marginTop: 2,
+  },
   dayViewClassTime: {
     fontSize: 14,
     marginTop: 4,
+    color: "#0066cc",
+  },
+  dayViewClassDetails: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
   },
   dayViewClassRoom: {
     fontSize: 14,
-    marginTop: 2,
+    marginLeft: 4,
+    color: "#666666",
+  },
+  dayViewClassYear: {
+    fontSize: 14,
+    marginLeft: 4,
+    color: "#666666",
   },
   dayViewClassBadge: {
     backgroundColor: "rgba(255, 255, 255, 0.7)",
@@ -659,7 +961,76 @@ const styles = StyleSheet.create({
     padding: 16,
     color: "#666666",
   },
+  // No Timetable Styles
+  noTimetableContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  noTimetableText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#666666",
+    marginTop: 16,
+  },
+  noTimetableSubtext: {
+    fontSize: 14,
+    color: "#999999",
+    marginTop: 8,
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  generateButton: {
+    backgroundColor: "#0066cc",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  generateButtonText: {
+    color: "#ffffff",
+    fontWeight: "bold",
+  },
+  // No Classes Styles
+  noClassesContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  noClassesText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#666666",
+    marginTop: 16,
+  },
+  noClassesSubtext: {
+    fontSize: 14,
+    color: "#999999",
+    marginTop: 8,
+    textAlign: "center",
+  },
+  // Edit Screen Styles
+  editCard: {
+    margin: 16,
+  },
+  editLabel: {
+    fontSize: 14,
+    color: "#666666",
+    marginTop: 12,
+  },
+  editValue: {
+    fontSize: 16,
+    color: "#333333",
+    marginBottom: 8,
+  },
+  editNote: {
+    fontSize: 14,
+    color: "#999999",
+    fontStyle: "italic",
+    marginTop: 16,
+    textAlign: "center",
+  },
 })
 
 export default TimetableScreen
-

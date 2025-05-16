@@ -10,6 +10,10 @@ import { StatusBar } from "react-native"
 import HomeScreen from "./screens/HomeScreen"
 import LoginScreen from "./screens/LoginScreen"
 
+import 'react-native-gesture-handler'; // Important! Add this at the top of your file
+
+// Rest of your App.js remains the same
+
 const Stack = createNativeStackNavigator()
 
 export default function App() {

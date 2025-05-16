@@ -11,6 +11,7 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  ScrollView,
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { Card } from "react-native-paper"
@@ -417,6 +418,8 @@ const CourseManagementScreen = () => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
+            {/* Add ScrollView here to make content scrollable */}
+           <ScrollView contentContainerStyle={styles.modalScrollContent}>
             <Text style={styles.modalTitle}>{editingCourse ? "Edit Course" : "Add New Course"}</Text>
 
             <TextInput
@@ -543,6 +546,7 @@ const CourseManagementScreen = () => {
                 </TouchableOpacity>
               ))}
             </View>
+            </ScrollView>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -559,6 +563,7 @@ const CourseManagementScreen = () => {
                 <Text style={styles.saveButtonText}>{editingCourse ? "Update" : "Add"}</Text>
               </TouchableOpacity>
             </View>
+            
           </View>
         </View>
       </Modal>
@@ -682,10 +687,11 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: "90%",
+    maxHeight: "80%",
     backgroundColor: "#ffffff",
     borderRadius: 8,
     padding: 16,
-
+    elevation: 5,
   },
   modalTitle: {
     fontSize: 20,
@@ -738,10 +744,16 @@ const styles = StyleSheet.create({
     color: "#0066cc",
     fontWeight: "bold",
   },
+  modalScrollContent: {
+    paddingBottom: 20, // Add some padding at the bottom
+  },
   modalButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#e0e0e0",
   },
   modalButton: {
     flex: 1,
