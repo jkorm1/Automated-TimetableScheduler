@@ -147,6 +147,8 @@ const CourseManagementScreen = () => {
       console.error("Error fetching lecturers:", error);
     }
   };
+
+  
   
 
   const handleAddCourse = async () => {
