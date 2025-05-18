@@ -10,11 +10,28 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Image,
 } from "react-native"
 import { Card } from "react-native-paper"
 import { Ionicons } from "@expo/vector-icons"
 import { auth, db } from "../firebaseConfig"
-import { collection, getDocs, query, where } from "firebase/firestore"
+import { collection, getDocs, query, where, limit } from "firebase/firestore"
+
+// KNUST color theme
+const COLORS = {
+  primary: "#006400", // Dark green
+  secondary: "#FFD700", // Gold/Yellow
+  background: "#F5F5F5",
+  cardBackground: "#FFFFFF",
+  text: "#333333",
+  textLight: "#666666",
+  accent: "#008000", // Medium green
+  border: "#E0E0E0",
+  success: "#4CAF50",
+  warning: "#FFC107",
+  error: "#F44336",
+  info: "#2196F3",
+}
 
 const DashboardScreen = ({ route, navigation }) => {
   const { userRole } = route.params
@@ -24,6 +41,7 @@ const DashboardScreen = ({ route, navigation }) => {
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [programTimetableStatus, setProgramTimetableStatus] = useState([])
 
   useEffect(() => {
     fetchDashboardData()
@@ -69,6 +87,11 @@ const DashboardScreen = ({ route, navigation }) => {
 
         // Get notifications
         await fetchNotifications(user.uid)
+
+        // Get timetable status for admin
+        if (userData.role === "admin") {
+          await fetchTimetableStatus()
+        }
       }
     } catch (error) {
       console.error("Error fetching dashboard data:", error)
@@ -169,15 +192,70 @@ const DashboardScreen = ({ route, navigation }) => {
     }
   }
 
+  const fetchTimetableStatus = async () => {
+    try {
+      // Get all programs
+      const programsRef = collection(db, "programs")
+      const programsSnapshot = await getDocs(programsRef)
+
+      const programsData = []
+
+      for (const programDoc of programsSnapshot.docs) {
+        const programData = programDoc.data()
+
+        // Check if this program has a timetable
+        const timetableRef = collection(db, "timetable")
+        const timetableQuery = query(timetableRef, where("program_id", "==", programDoc.id), limit(1))
+        const timetableSnapshot = await getDocs(timetableQuery)
+
+        const hasTimetable = !timetableSnapshot.empty
+
+        programsData.push({
+          id: programDoc.id,
+          name: programData.name,
+          status: hasTimetable ? "Generated" : "Pending",
+        })
+      }
+
+      setProgramTimetableStatus(programsData)
+    } catch (error) {
+      console.error("Error fetching timetable status:", error)
+    }
+  }
+
   const fetchNotifications = async (userId) => {
     try {
       // In a real app, you would fetch notifications from Firestore
-      // For now, we'll use mock data
-      setNotifications([
-        { id: 1, message: "Timetable updated for next week", time: "2 hours ago" },
-        { id: 2, message: "New course material available", time: "1 day ago" },
-        { id: 3, message: "Attendance recorded for Operating Systems", time: "2 days ago" },
-      ])
+      // For now, we'll use a more realistic approach with timestamps
+
+      // Check if there are any timetable entries
+      const timetableRef = collection(db, "timetable")
+      const timetableQuery = query(timetableRef, limit(1))
+      const timetableSnapshot = await getDocs(timetableQuery)
+
+      const notifications = []
+
+      if (!timetableSnapshot.empty) {
+        notifications.push({
+          id: 1,
+          message: "Timetable is now available",
+          time: "2 hours ago",
+          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        })
+      }
+
+      // Add some generic notifications
+      notifications.push({
+        id: 2,
+        message: "Welcome to UniScheduler",
+        time: "1 day ago",
+        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      })
+
+      // Sort by timestamp (newest first)
+      notifications.sort((a, b) => b.timestamp - a.timestamp)
+
+      setNotifications(notifications)
     } catch (error) {
       console.error("Error fetching notifications:", error)
     }
@@ -191,7 +269,7 @@ const DashboardScreen = ({ route, navigation }) => {
   if (loading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0066cc" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     )
   }
@@ -202,6 +280,7 @@ const DashboardScreen = ({ route, navigation }) => {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.header}>
+        <Image source={require("../assets/knust-logo.png")} style={styles.logo} resizeMode="contain" />
         <Text style={styles.welcomeText}>Welcome, {userName}</Text>
         <Text style={styles.subText}>
           {userRole === "student"
@@ -287,21 +366,25 @@ const DashboardScreen = ({ route, navigation }) => {
       {userRole === "student" && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Attendance Status</Text>
-          {upcomingClasses.map((cls) => (
-            <Card key={cls.id} style={styles.card}>
-              <Card.Content>
-                <View style={styles.rowBetween}>
-                  <View>
-                    <Text style={styles.cardTitle}>{cls.course}</Text>
-                    <Text style={styles.cardSubtitle}>Last week: 2/2 classes</Text>
+          {upcomingClasses.length > 0 ? (
+            upcomingClasses.map((cls) => (
+              <Card key={cls.id} style={styles.card}>
+                <Card.Content>
+                  <View style={styles.rowBetween}>
+                    <View>
+                      <Text style={styles.cardTitle}>{cls.course}</Text>
+                      <Text style={styles.cardSubtitle}>Last week: 2/2 classes</Text>
+                    </View>
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>90%</Text>
+                    </View>
                   </View>
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>90%</Text>
-                  </View>
-                </View>
-              </Card.Content>
-            </Card>
-          ))}
+                </Card.Content>
+              </Card>
+            ))
+          ) : (
+            <Text style={styles.emptyText}>No attendance records available.</Text>
+          )}
 
           <TouchableOpacity
             style={styles.viewAllButton}
@@ -315,38 +398,24 @@ const DashboardScreen = ({ route, navigation }) => {
       {userRole === "admin" && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Timetable Status</Text>
-          <Card style={styles.card}>
-            <Card.Content>
-              <View style={styles.rowBetween}>
-                <Text>Computer Science</Text>
-                <View style={[styles.badge, styles.greenBadge]}>
-                  <Text style={styles.badgeText}>Generated</Text>
-                </View>
-              </View>
-            </Card.Content>
-          </Card>
-
-          <Card style={styles.card}>
-            <Card.Content>
-              <View style={styles.rowBetween}>
-                <Text>Information Technology</Text>
-                <View style={[styles.badge, styles.greenBadge]}>
-                  <Text style={styles.badgeText}>Generated</Text>
-                </View>
-              </View>
-            </Card.Content>
-          </Card>
-
-          <Card style={styles.card}>
-            <Card.Content>
-              <View style={styles.rowBetween}>
-                <Text>Business Administration</Text>
-                <View style={[styles.badge, styles.yellowBadge]}>
-                  <Text style={styles.badgeText}>Pending</Text>
-                </View>
-              </View>
-            </Card.Content>
-          </Card>
+          {programTimetableStatus.length > 0 ? (
+            programTimetableStatus.map((program) => (
+              <Card key={program.id} style={styles.card}>
+                <Card.Content>
+                  <View style={styles.rowBetween}>
+                    <Text>{program.name}</Text>
+                    <View
+                      style={[styles.badge, program.status === "Generated" ? styles.greenBadge : styles.yellowBadge]}
+                    >
+                      <Text style={styles.badgeText}>{program.status}</Text>
+                    </View>
+                  </View>
+                </Card.Content>
+              </Card>
+            ))
+          ) : (
+            <Text style={styles.emptyText}>No programs found.</Text>
+          )}
 
           <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate("Generator")}>
             <Text style={styles.primaryButtonText}>Generate Timetables</Text>
@@ -360,7 +429,7 @@ const DashboardScreen = ({ route, navigation }) => {
           {userRole === "student" && (
             <>
               <TouchableOpacity style={styles.quickActionButton} onPress={() => navigation.navigate("Timetable")}>
-                <Ionicons name="calendar-outline" size={24} color="#0066cc" />
+                <Ionicons name="calendar-outline" size={24} color={COLORS.primary} />
                 <Text style={styles.quickActionText}>View Timetable</Text>
               </TouchableOpacity>
 
@@ -368,7 +437,7 @@ const DashboardScreen = ({ route, navigation }) => {
                 style={styles.quickActionButton}
                 onPress={() => navigation.navigate("Attendance", { screen: "Submit" })}
               >
-                <Ionicons name="checkbox-outline" size={24} color="#0066cc" />
+                <Ionicons name="checkbox-outline" size={24} color={COLORS.primary} />
                 <Text style={styles.quickActionText}>Submit Attendance</Text>
               </TouchableOpacity>
             </>
@@ -377,12 +446,12 @@ const DashboardScreen = ({ route, navigation }) => {
           {userRole === "lecturer" && (
             <>
               <TouchableOpacity style={styles.quickActionButton} onPress={() => navigation.navigate("Timetable")}>
-                <Ionicons name="calendar-outline" size={24} color="#0066cc" />
+                <Ionicons name="calendar-outline" size={24} color={COLORS.primary} />
                 <Text style={styles.quickActionText}>View Timetable</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.quickActionButton} onPress={() => navigation.navigate("Attendance")}>
-                <Ionicons name="checkbox-outline" size={24} color="#0066cc" />
+                <Ionicons name="checkbox-outline" size={24} color={COLORS.primary} />
                 <Text style={styles.quickActionText}>Take Attendance</Text>
               </TouchableOpacity>
 
@@ -390,7 +459,7 @@ const DashboardScreen = ({ route, navigation }) => {
                 style={styles.quickActionButton}
                 onPress={() => navigation.navigate("Settings", { screen: "Preferences" })}
               >
-                <Ionicons name="settings-outline" size={24} color="#0066cc" />
+                <Ionicons name="settings-outline" size={24} color={COLORS.primary} />
                 <Text style={styles.quickActionText}>Time Preferences</Text>
               </TouchableOpacity>
             </>
@@ -399,20 +468,17 @@ const DashboardScreen = ({ route, navigation }) => {
           {userRole === "admin" && (
             <>
               <TouchableOpacity style={styles.quickActionButton} onPress={() => navigation.navigate("Generator")}>
-                <Ionicons name="settings-outline" size={24} color="#0066cc" />
+                <Ionicons name="settings-outline" size={24} color={COLORS.primary} />
                 <Text style={styles.quickActionText}>Generate</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.quickActionButton}
-                onPress={() => navigation.navigate("Timetable", { screen: "Edit" })}
-              >
-                <Ionicons name="calendar-outline" size={24} color="#0066cc" />
-                <Text style={styles.quickActionText}>Edit Timetable</Text>
+              <TouchableOpacity style={styles.quickActionButton} onPress={() => navigation.navigate("Timetable")}>
+                <Ionicons name="calendar-outline" size={24} color={COLORS.primary} />
+                <Text style={styles.quickActionText}>View Timetable</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.quickActionButton} onPress={() => navigation.navigate("Rooms")}>
-                <Ionicons name="business-outline" size={24} color="#0066cc" />
+                <Ionicons name="business-outline" size={24} color={COLORS.primary} />
                 <Text style={styles.quickActionText}>Manage Rooms</Text>
               </TouchableOpacity>
             </>
@@ -422,21 +488,25 @@ const DashboardScreen = ({ route, navigation }) => {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Recent Notifications</Text>
-        {notifications.map((notification) => (
-          <Card key={notification.id} style={styles.card}>
-            <Card.Content>
-              <View style={styles.notificationRow}>
-                <View style={styles.notificationIcon}>
-                  <Ionicons name="notifications-outline" size={20} color="#0066cc" />
+        {notifications.length > 0 ? (
+          notifications.map((notification) => (
+            <Card key={notification.id} style={styles.card}>
+              <Card.Content>
+                <View style={styles.notificationRow}>
+                  <View style={styles.notificationIcon}>
+                    <Ionicons name="notifications-outline" size={20} color={COLORS.primary} />
+                  </View>
+                  <View style={styles.notificationContent}>
+                    <Text style={styles.notificationText}>{notification.message}</Text>
+                    <Text style={styles.notificationTime}>{notification.time}</Text>
+                  </View>
                 </View>
-                <View style={styles.notificationContent}>
-                  <Text style={styles.notificationText}>{notification.message}</Text>
-                  <Text style={styles.notificationTime}>{notification.time}</Text>
-                </View>
-              </View>
-            </Card.Content>
-          </Card>
-        ))}
+              </Card.Content>
+            </Card>
+          ))
+        ) : (
+          <Text style={styles.emptyText}>No notifications available.</Text>
+        )}
       </View>
     </ScrollView>
   )
@@ -445,28 +515,37 @@ const DashboardScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: COLORS.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: COLORS.background,
   },
   header: {
     padding: 16,
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.primary,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: COLORS.border,
+    alignItems: "center",
+  },
+  logo: {
+    width: 80,
+    height: 80,
+    marginBottom: 10,
   },
   welcomeText: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.secondary,
+    textAlign: "center",
   },
   subText: {
     fontSize: 16,
-    color: "#666666",
+    color: "#FFFFFF",
     marginTop: 4,
+    textAlign: "center",
   },
   section: {
     padding: 16,
@@ -476,20 +555,26 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 12,
-    color: "#333333",
+    color: COLORS.primary,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.secondary,
+    paddingLeft: 8,
   },
   card: {
     marginBottom: 12,
     elevation: 2,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.text,
   },
   cardSubtitle: {
     fontSize: 14,
-    color: "#666666",
+    color: COLORS.textLight,
     marginTop: 4,
   },
   cardFooter: {
@@ -504,34 +589,43 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   greenBadge: {
-    backgroundColor: "#e6f7e6",
+    backgroundColor: "#e6ffe6",
+    borderWidth: 1,
+    borderColor: COLORS.success,
   },
   yellowBadge: {
     backgroundColor: "#fff8e6",
+    borderWidth: 1,
+    borderColor: COLORS.warning,
   },
   redBadge: {
     backgroundColor: "#ffe6e6",
+    borderWidth: 1,
+    borderColor: COLORS.error,
   },
   badgeText: {
     fontSize: 12,
-    color: "#333333",
+    color: COLORS.text,
+    fontWeight: "500",
   },
   emptyText: {
     textAlign: "center",
-    color: "#666666",
+    color: COLORS.textLight,
     marginVertical: 16,
+    fontStyle: "italic",
   },
   viewAllButton: {
     alignItems: "center",
     marginTop: 12,
   },
   viewAllText: {
-    color: "#0066cc",
+    color: COLORS.primary,
     fontSize: 16,
+    fontWeight: "500",
   },
   actionButton: {
-    backgroundColor: "#0066cc",
-    padding: 8,
+    backgroundColor: COLORS.primary,
+    padding: 10,
     borderRadius: 4,
     alignItems: "center",
     marginTop: 8,
@@ -546,14 +640,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryButton: {
-    backgroundColor: "#0066cc",
+    backgroundColor: COLORS.primary,
     padding: 12,
-    borderRadius: 4,
+    borderRadius: 8,
     alignItems: "center",
     marginTop: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   primaryButtonText: {
-    color: "#ffffff",
+    color: COLORS.secondary,
     fontWeight: "bold",
     fontSize: 16,
   },
@@ -564,16 +663,18 @@ const styles = StyleSheet.create({
   },
   quickActionButton: {
     width: "48%",
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.cardBackground,
     padding: 16,
     borderRadius: 8,
     alignItems: "center",
     marginBottom: 12,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   quickActionText: {
     marginTop: 8,
-    color: "#333333",
+    color: COLORS.text,
     fontWeight: "bold",
   },
   notificationRow: {
@@ -594,14 +695,13 @@ const styles = StyleSheet.create({
   },
   notificationText: {
     fontSize: 14,
-    color: "#333333",
+    color: COLORS.text,
   },
   notificationTime: {
     fontSize: 12,
-    color: "#666666",
+    color: COLORS.textLight,
     marginTop: 4,
   },
 })
 
 export default DashboardScreen
-

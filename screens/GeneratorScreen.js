@@ -16,32 +16,35 @@ import {
 import { Ionicons } from "@expo/vector-icons"
 import { Card } from "react-native-paper"
 import { db } from "../firebaseConfig"
-import {
-  collection,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
-  query,
-  where,
-  orderBy,
-  serverTimestamp,
-  getDoc,
-  writeBatch,
-} from "firebase/firestore"
+import { collection, getDocs, doc, query, where, serverTimestamp, writeBatch } from "firebase/firestore"
 import { useNavigation } from "@react-navigation/native"
+
+// KNUST color theme
+const COLORS = {
+  primary: "#006400", // Dark green
+  secondary: "#FFD700", // Gold/Yellow
+  background: "#F5F5F5",
+  cardBackground: "#FFFFFF",
+  text: "#333333",
+  textLight: "#666666",
+  accent: "#008000", // Medium green
+  border: "#E0E0E0",
+  success: "#4CAF50",
+  warning: "#FFC107",
+  error: "#F44336",
+  info: "#2196F3",
+}
 
 const GeneratorScreen = () => {
   const navigation = useNavigation()
-  
+
   // State for programs and courses
   const [programs, setPrograms] = useState([])
   const [selectedProgram, setSelectedProgram] = useState(null)
   const [courses, setCourses] = useState([])
   const [lecturers, setLecturers] = useState([])
   const [rooms, setRooms] = useState([])
-  
+
   // State for generation settings
   const [settings, setSettings] = useState({
     prioritizeRoomSize: true,
@@ -55,17 +58,17 @@ const GeneratorScreen = () => {
     maxSessionsPerDay: 3,
     respectCreditHours: true,
   })
-  
+
   // State for generation process
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationProgress, setGenerationProgress] = useState(0)
   const [generationStep, setGenerationStep] = useState("")
   const [conflicts, setConflicts] = useState([])
-  
+
   // State for generated timetable
   const [timetable, setTimetable] = useState([])
   const [showTimetable, setShowTimetable] = useState(false)
-  
+
   // State for UI
   const [activeTab, setActiveTab] = useState("settings") // settings, conflicts, preview
   const [loading, setLoading] = useState(true)
@@ -80,7 +83,7 @@ const GeneratorScreen = () => {
     try {
       const programsRef = collection(db, "programs")
       const programsSnapshot = await getDocs(programsRef)
-      
+
       const programsList = []
       programsSnapshot.forEach((doc) => {
         programsList.push({
@@ -88,7 +91,7 @@ const GeneratorScreen = () => {
           ...doc.data(),
         })
       })
-      
+
       setPrograms(programsList)
       setLoading(false)
     } catch (error) {
@@ -103,10 +106,10 @@ const GeneratorScreen = () => {
     try {
       console.log("Starting to fetch lecturers...")
       setLoading(true)
-      
+
       const lecturersRef = collection(db, "lecturers")
       const lecturersSnapshot = await getDocs(lecturersRef)
-      
+
       console.log(`Found ${lecturersSnapshot.docs.length} lecturer documents in Firestore`)
 
       const lecturersData = []
@@ -114,7 +117,7 @@ const GeneratorScreen = () => {
       for (const doc of lecturersSnapshot.docs) {
         try {
           const lecturerData = doc.data()
-          
+
           // Skip lecturers without a user_id
           if (!lecturerData.user_id) {
             console.log(`Skipping lecturer ${doc.id} - missing user_id field`)
@@ -123,13 +126,13 @@ const GeneratorScreen = () => {
 
           let lecturerName = "Unknown"
           let lecturerEmail = ""
-          
+
           // Get user data for lecturer name
           try {
             const userRef = collection(db, "users")
             const q = query(userRef, where("id", "==", lecturerData.user_id))
             const userSnapshot = await getDocs(q)
-            
+
             if (!userSnapshot.empty) {
               const userData = userSnapshot.docs[0].data()
               lecturerName = userData.name || "Unknown"
@@ -154,7 +157,7 @@ const GeneratorScreen = () => {
                   id: courseDoc.id,
                   name: courseData.name || "Unnamed Course",
                   code: courseData.code || "",
-                  credit_hours: courseData.credit_hours || 3
+                  credit_hours: courseData.credit_hours || 3,
                 })
               }
             })
@@ -183,7 +186,7 @@ const GeneratorScreen = () => {
             max_hours_per_week: lecturerData.max_hours_per_week || 20,
             max_courses: lecturerData.max_courses || 5,
             user_id: lecturerData.user_id,
-            ...lecturerData
+            ...lecturerData,
           })
         } catch (lecturerError) {
           console.error(`Error processing lecturer ${doc.id}:`, lecturerError)
@@ -192,17 +195,13 @@ const GeneratorScreen = () => {
 
       console.log(`Successfully processed ${lecturersData.length} valid lecturers`)
       setLecturers(lecturersData)
-      
+
       if (lecturersData.length === 0) {
         console.warn("No valid lecturers found with user_id field")
       }
     } catch (error) {
       console.error("Error fetching lecturers:", error)
-      Alert.alert(
-        "Error",
-        "Failed to load lecturers. Please try again later.",
-        [{ text: "OK" }]
-      )
+      Alert.alert("Error", "Failed to load lecturers. Please try again later.", [{ text: "OK" }])
     } finally {
       setLoading(false)
     }
@@ -212,7 +211,7 @@ const GeneratorScreen = () => {
     try {
       const roomsRef = collection(db, "rooms")
       const roomsSnapshot = await getDocs(roomsRef)
-      
+
       const roomsList = []
       roomsSnapshot.forEach((doc) => {
         roomsList.push({
@@ -222,10 +221,10 @@ const GeneratorScreen = () => {
           capacity: doc.data().capacity || 30,
         })
       })
-      
+
       // Sort rooms by capacity (largest to smallest)
       roomsList.sort((a, b) => (b.capacity || 0) - (a.capacity || 0))
-      
+
       setRooms(roomsList)
       console.log(`Fetched ${roomsList.length} rooms`)
     } catch (error) {
@@ -239,7 +238,7 @@ const GeneratorScreen = () => {
       const coursesRef = collection(db, "courses")
       const q = query(coursesRef, where("program_id", "==", programId))
       const coursesSnapshot = await getDocs(q)
-      
+
       const coursesList = []
       coursesSnapshot.forEach((doc) => {
         const courseData = doc.data()
@@ -255,14 +254,14 @@ const GeneratorScreen = () => {
           selected: true, // Default all courses to be included
         })
       })
-      
+
       // Sort courses by year, semester, and credit hours
       coursesList.sort((a, b) => {
         if (a.year !== b.year) return a.year - b.year
         if (a.semester !== b.semester) return a.semester - b.semester
         return b.credit_hours - a.credit_hours // Higher credit hours first
       })
-      
+
       setCourses(coursesList)
       console.log(`Fetched ${coursesList.length} courses for program ${programId}`)
     } catch (error) {
@@ -280,13 +279,7 @@ const GeneratorScreen = () => {
   }
 
   const toggleCourseSelection = (courseId) => {
-    setCourses(
-      courses.map((course) => 
-        course.id === courseId 
-          ? { ...course, selected: !course.selected } 
-          : course
-      )
-    )
+    setCourses(courses.map((course) => (course.id === courseId ? { ...course, selected: !course.selected } : course)))
   }
 
   const updateSetting = (key, value) => {
@@ -297,38 +290,38 @@ const GeneratorScreen = () => {
   }
 
   const validateSettings = () => {
-    const selectedCourses = courses.filter(course => course.selected)
-    
+    const selectedCourses = courses.filter((course) => course.selected)
+
     if (selectedCourses.length === 0) {
       Alert.alert("Error", "Please select at least one course to include in the timetable")
       return false
     }
-    
+
     if (rooms.length === 0) {
       Alert.alert("Error", "No rooms available. Please add rooms before generating a timetable")
       return false
     }
-    
+
     if (lecturers.length === 0) {
       Alert.alert("Error", "No lecturers available. Please add lecturers before generating a timetable")
       return false
     }
-    
+
     // Check if all selected courses have assigned lecturers
-    const coursesWithoutLecturers = selectedCourses.filter(course => !course.lecturer_id)
+    const coursesWithoutLecturers = selectedCourses.filter((course) => !course.lecturer_id)
     if (coursesWithoutLecturers.length > 0) {
-      const courseNames = coursesWithoutLecturers.map(c => c.name).join(", ")
+      const courseNames = coursesWithoutLecturers.map((c) => c.name).join(", ")
       Alert.alert(
-        "Warning", 
+        "Warning",
         `The following courses don't have assigned lecturers: ${courseNames}. Lecturers will be assigned automatically.`,
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Continue", onPress: () => generateTimetableInternal() }
-        ]
+          { text: "Continue", onPress: () => generateTimetableInternal() },
+        ],
       )
       return false
     }
-    
+
     return true
   }
 
@@ -346,21 +339,21 @@ const GeneratorScreen = () => {
       setActiveTab("conflicts")
       setConflicts([])
       setTimetable([])
-      
+
       // Step 1: Get selected courses
-      const selectedCourses = courses.filter(course => course.selected)
+      const selectedCourses = courses.filter((course) => course.selected)
       setGenerationProgress(5)
       setGenerationStep("Analyzing course requirements...")
-      
+
       // Step 2: Create time slots
-      const days = settings.allowWeekends 
-        ? ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] 
+      const days = settings.allowWeekends
+        ? ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         : ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-      
+
       // Parse start and end times
-      const startHour = parseInt(settings.preferredStartTime.split(":")[0])
-      const endHour = parseInt(settings.preferredEndTime.split(":")[0])
-      
+      const startHour = Number.parseInt(settings.preferredStartTime.split(":")[0])
+      const endHour = Number.parseInt(settings.preferredEndTime.split(":")[0])
+
       // Generate all possible time slots
       const timeSlots = []
       for (const day of days) {
@@ -371,14 +364,14 @@ const GeneratorScreen = () => {
             day,
             startTime,
             endTime,
-            key: `${day}-${startTime}`
+            key: `${day}-${startTime}`,
           })
         }
       }
-      
+
       setGenerationProgress(10)
       setGenerationStep("Preparing scheduling constraints...")
-      
+
       // Step 3: Sort courses by priority
       // Priority: Higher year > Higher semester > Higher credit hours > More students
       const prioritizedCourses = [...selectedCourses].sort((a, b) => {
@@ -387,101 +380,105 @@ const GeneratorScreen = () => {
         if (a.credit_hours !== b.credit_hours) return b.credit_hours - a.credit_hours
         return (b.expected_students || 0) - (a.expected_students || 0)
       })
-      
-      console.log("Courses sorted by priority:", prioritizedCourses.map(c => `${c.name} (Y${c.year}S${c.semester}, ${c.credit_hours}cr)`))
-      
+
+      console.log(
+        "Courses sorted by priority:",
+        prioritizedCourses.map((c) => `${c.name} (Y${c.year}S${c.semester}, ${c.credit_hours}cr)`),
+      )
+
       // Step 4: Initialize scheduling data structures
-      
+
       // Track which time slots are used for each room
       const roomSchedule = {}
-      rooms.forEach(room => {
+      rooms.forEach((room) => {
         roomSchedule[room.id] = {}
-        timeSlots.forEach(slot => {
+        timeSlots.forEach((slot) => {
           roomSchedule[room.id][slot.key] = false
         })
       })
-      
+
       // Track which time slots are used for each lecturer
       const lecturerSchedule = {}
-      lecturers.forEach(lecturer => {
+      lecturers.forEach((lecturer) => {
         lecturerSchedule[lecturer.id] = {
           slots: {},
           dailyHours: {},
           totalHours: 0,
-          courseCount: 0
+          courseCount: 0,
         }
-        
+
         // Initialize slots
-        timeSlots.forEach(slot => {
+        timeSlots.forEach((slot) => {
           lecturerSchedule[lecturer.id].slots[slot.key] = false
         })
-        
+
         // Initialize daily hours
-        days.forEach(day => {
+        days.forEach((day) => {
           lecturerSchedule[lecturer.id].dailyHours[day] = 0
         })
-        
+
         // Mark unavailable times
         if (lecturer.unavailableTimes && lecturer.unavailableTimes.length > 0) {
-          lecturer.unavailableTimes.forEach(unavailable => {
+          lecturer.unavailableTimes.forEach((unavailable) => {
             const key = `${unavailable.day}-${unavailable.time}`
             lecturerSchedule[lecturer.id].slots[key] = true
           })
         }
       })
-      
+
       // Track which time slots are used for each student group (year/semester)
       const studentGroupSchedule = {}
-      
+
       // Initialize student group schedules
-      prioritizedCourses.forEach(course => {
+      prioritizedCourses.forEach((course) => {
         const groupKey = `Y${course.year}S${course.semester}`
         if (!studentGroupSchedule[groupKey]) {
           studentGroupSchedule[groupKey] = {}
-          timeSlots.forEach(slot => {
+          timeSlots.forEach((slot) => {
             studentGroupSchedule[groupKey][slot.key] = false
           })
         }
       })
-      
+
       // Track course sessions already scheduled
       const courseSessionsScheduled = {}
-      prioritizedCourses.forEach(course => {
+      prioritizedCourses.forEach((course) => {
         courseSessionsScheduled[course.id] = 0
       })
-      
+
       setGenerationProgress(15)
       setGenerationStep("Allocating courses to time slots...")
-      
+
       // Step 5: Generate the timetable
       const generatedTimetable = []
       const currentConflicts = []
-      
+
       // For each course, calculate how many sessions we need
-      prioritizedCourses.forEach(course => {
+      prioritizedCourses.forEach((course) => {
         // Calculate required sessions based on credit hours
         // Typically 1 credit hour = 1 hour of class time per week
         const creditHours = course.credit_hours || 3
-        const sessionsNeeded = settings.respectCreditHours ? 
-          Math.ceil(creditHours / 2) : // Assuming 2-hour sessions
-          Math.ceil(creditHours / 3)   // Or 3-hour sessions if not respecting credit hours exactly
-        
+        const sessionsNeeded = settings.respectCreditHours
+          ? Math.ceil(creditHours / 2)
+          : // Assuming 2-hour sessions
+            Math.ceil(creditHours / 3) // Or 3-hour sessions if not respecting credit hours exactly
+
         course.sessionsNeeded = sessionsNeeded
         course.sessionsScheduled = 0
-        
+
         console.log(`Course ${course.name}: needs ${sessionsNeeded} sessions for ${creditHours} credit hours`)
       })
-      
+
       // Function to find the best lecturer for a course
       const findBestLecturer = (course) => {
         // If course already has an assigned lecturer, use that
         if (course.lecturer_id) {
-          const assignedLecturer = lecturers.find(l => l.user_id === course.lecturer_id)
+          const assignedLecturer = lecturers.find((l) => l.user_id === course.lecturer_id)
           if (assignedLecturer) {
             return assignedLecturer
           }
         }
-        
+
         // Otherwise, find the least busy lecturer
         if (settings.balanceLecturerLoad) {
           return lecturers.reduce((leastBusy, current) => {
@@ -490,106 +487,105 @@ const GeneratorScreen = () => {
             return currentLoad < leastBusyLoad ? current : leastBusy
           }, lecturers[0])
         }
-        
+
         // Default to first lecturer if no other criteria
         return lecturers[0]
       }
-      
+
       // Function to find the best room for a course
       const findBestRoom = (course, timeSlot) => {
         // Filter rooms that are available at this time slot
-        const availableRooms = rooms.filter(room => !roomSchedule[room.id][timeSlot.key])
-        
+        const availableRooms = rooms.filter((room) => !roomSchedule[room.id][timeSlot.key])
+
         if (availableRooms.length === 0) return null
-        
+
         // If prioritizing room size, find the smallest room that fits
         if (settings.prioritizeRoomSize) {
           // Sort by capacity (smallest to largest)
           const sortedBySize = [...availableRooms].sort((a, b) => (a.capacity || 0) - (b.capacity || 0))
-          
+
           // Find the smallest room that fits the class
           const expectedStudents = course.expected_students || course.enrolled_students || 20
-          const suitableRoom = sortedBySize.find(room => (room.capacity || 0) >= expectedStudents)
-          
+          const suitableRoom = sortedBySize.find((room) => (room.capacity || 0) >= expectedStudents)
+
           return suitableRoom || sortedBySize[sortedBySize.length - 1] // Return largest if none fit
         }
-        
+
         // Otherwise, just return the first available room
         return availableRooms[0]
       }
-      
+
       // Function to check if a time slot works for a course
       const isTimeSlotSuitable = (course, timeSlot, lecturer) => {
         const groupKey = `Y${course.year}S${course.semester}`
-        
+
         // Check if student group is already scheduled at this time
         if (studentGroupSchedule[groupKey][timeSlot.key]) {
           return false
         }
-        
+
         // Check if lecturer is available
         if (lecturerSchedule[lecturer.id].slots[timeSlot.key]) {
           return false
         }
-        
+
         // Check if lecturer has reached max daily hours
         if (lecturerSchedule[lecturer.id].dailyHours[timeSlot.day] >= settings.maxDailyHours) {
           return false
         }
-        
+
         // If avoiding back-to-back classes, check adjacent slots
         if (settings.avoidBackToBack) {
           // Get hour from time slot
-          const hour = parseInt(timeSlot.startTime.split(":")[0])
-          
+          const hour = Number.parseInt(timeSlot.startTime.split(":")[0])
+
           // Check previous hour
           const prevHour = `${(hour - 1).toString().padStart(2, "0")}:00`
           const prevSlotKey = `${timeSlot.day}-${prevHour}`
-          
+
           // Check next hour
           const nextHour = `${(hour + 1).toString().padStart(2, "0")}:00`
           const nextSlotKey = `${timeSlot.day}-${nextHour}`
-          
+
           // If lecturer has class in adjacent slots, avoid this slot
-          if (lecturerSchedule[lecturer.id].slots[prevSlotKey] || 
-              lecturerSchedule[lecturer.id].slots[nextSlotKey]) {
+          if (lecturerSchedule[lecturer.id].slots[prevSlotKey] || lecturerSchedule[lecturer.id].slots[nextSlotKey]) {
             return false
           }
         }
-        
+
         // If spreading courses across days, check if this course already has a session on this day
         if (settings.spreadCoursesAcrossDays) {
           const sessionsOnThisDay = generatedTimetable.filter(
-            entry => entry.course_id === course.id && entry.day === timeSlot.day
+            (entry) => entry.course_id === course.id && entry.day === timeSlot.day,
           ).length
-          
+
           if (sessionsOnThisDay >= settings.maxSessionsPerDay) {
             return false
           }
         }
-        
+
         return true
       }
-      
+
       // Schedule each course
       for (let i = 0; i < prioritizedCourses.length; i++) {
         const course = prioritizedCourses[i]
-        setGenerationStep(`Scheduling ${course.name} (${i+1}/${prioritizedCourses.length})...`)
-        
+        setGenerationStep(`Scheduling ${course.name} (${i + 1}/${prioritizedCourses.length})...`)
+
         // Find the best lecturer for this course
         const lecturer = findBestLecturer(course)
-        
+
         // Schedule each session needed for this course
         for (let session = 0; session < course.sessionsNeeded; session++) {
           let scheduled = false
-          
+
           // Try each time slot
           for (const timeSlot of timeSlots) {
             // Check if this time slot works
             if (isTimeSlotSuitable(course, timeSlot, lecturer)) {
               // Find the best room
               const room = findBestRoom(course, timeSlot)
-              
+
               if (room) {
                 // We found a suitable slot! Schedule the class
                 const timetableEntry = {
@@ -611,29 +607,29 @@ const GeneratorScreen = () => {
                   credit_hours: course.credit_hours || 3,
                   expected_students: course.expected_students || 20,
                 }
-                
+
                 // Add to timetable
                 generatedTimetable.push(timetableEntry)
-                
+
                 // Mark resources as used
                 roomSchedule[room.id][timeSlot.key] = true
                 lecturerSchedule[lecturer.id].slots[timeSlot.key] = true
                 lecturerSchedule[lecturer.id].dailyHours[timeSlot.day]++
                 lecturerSchedule[lecturer.id].totalHours++
                 lecturerSchedule[lecturer.id].courseCount++
-                
+
                 const groupKey = `Y${course.year}S${course.semester}`
                 studentGroupSchedule[groupKey][timeSlot.key] = true
-                
+
                 course.sessionsScheduled++
                 courseSessionsScheduled[course.id]++
-                
+
                 scheduled = true
                 break
               }
             }
           }
-          
+
           // If couldn't schedule this session, add to conflicts
           if (!scheduled) {
             currentConflicts.push({
@@ -646,16 +642,16 @@ const GeneratorScreen = () => {
             })
           }
         }
-        
+
         // Update progress
-        setGenerationProgress(15 + Math.floor(70 * (i + 1) / prioritizedCourses.length))
+        setGenerationProgress(15 + Math.floor((70 * (i + 1)) / prioritizedCourses.length))
       }
-      
+
       setGenerationProgress(85)
       setGenerationStep("Checking for conflicts...")
-      
+
       // Check for courses that couldn't be fully scheduled
-      prioritizedCourses.forEach(course => {
+      prioritizedCourses.forEach((course) => {
         if (course.sessionsScheduled < course.sessionsNeeded) {
           currentConflicts.push({
             type: "incomplete",
@@ -665,18 +661,18 @@ const GeneratorScreen = () => {
           })
         }
       })
-      
+
       // Check for any overlapping classes for the same year/semester (double-check)
       const yearSemesterGroups = {}
-      
-      generatedTimetable.forEach(entry => {
+
+      generatedTimetable.forEach((entry) => {
         const key = `Y${entry.year}S${entry.semester}-${entry.day}-${entry.start_time}`
         if (!yearSemesterGroups[key]) {
           yearSemesterGroups[key] = []
         }
         yearSemesterGroups[key].push(entry)
       })
-      
+
       // Check each group for time conflicts
       Object.entries(yearSemesterGroups).forEach(([key, entries]) => {
         if (entries.length > 1) {
@@ -687,25 +683,26 @@ const GeneratorScreen = () => {
           })
         }
       })
-      
+
       setGenerationProgress(95)
       setGenerationStep("Finalizing timetable...")
-      
+
       // Save the generated timetable
       setTimetable(generatedTimetable)
       setConflicts(currentConflicts)
-      
-      console.log(`Generated timetable with ${generatedTimetable.length} entries and ${currentConflicts.length} conflicts`)
-      
+
+      console.log(
+        `Generated timetable with ${generatedTimetable.length} entries and ${currentConflicts.length} conflicts`,
+      )
+
       // If no conflicts, show the preview
       if (currentConflicts.length === 0) {
         setActiveTab("preview")
         setShowTimetable(true)
       }
-      
+
       setGenerationProgress(100)
       setGenerationStep("Timetable generation complete!")
-      
     } catch (error) {
       console.error("Error generating timetable:", error)
       Alert.alert("Error", "Failed to generate timetable: " + error.message)
@@ -719,21 +716,53 @@ const GeneratorScreen = () => {
       Alert.alert("Error", "No timetable to save")
       return
     }
-    
+
     try {
       setLoading(true)
-      
+
       // First, delete any existing timetable entries for this program
       const timetableRef = collection(db, "timetable")
       const q = query(timetableRef, where("program_id", "==", selectedProgram.id))
       const existingEntries = await getDocs(q)
-      
+
       const batch = writeBatch(db)
-      
+
       existingEntries.forEach((entry) => {
         batch.delete(doc(db, "timetable", entry.id))
       })
-      
+
+      // Then add all new entries
+      // First, check if we need to create any courses
+      const coursesToCreate = new Set()
+      timetable.forEach((entry) => {
+        coursesToCreate.add(entry.course_id)
+      })
+
+      // Create any missing courses
+      for (const courseId of coursesToCreate) {
+        const courseRef = collection(db, "courses")
+        const courseQuery = query(courseRef, where("id", "==", courseId))
+        const courseSnapshot = await getDocs(courseQuery)
+
+        if (courseSnapshot.empty) {
+          console.log(`Creating missing course: ${courseId}`)
+          const courseEntry = timetable.find((entry) => entry.course_id === courseId)
+          const newCourseRef = doc(collection(db, "courses"))
+          batch.set(newCourseRef, {
+            id: courseId,
+            name: courseEntry.course_name || `Course ${courseId.substring(0, 5)}`,
+            code: courseEntry.course_code || "Unknown",
+            program_id: courseEntry.program_id,
+            lecturer_id: courseEntry.lecturer_id,
+            year: courseEntry.year || 1,
+            semester: courseEntry.semester || 1,
+            credit_hours: courseEntry.credit_hours || 3,
+            expected_students: courseEntry.expected_students || 30,
+            created_at: serverTimestamp(),
+          })
+        }
+      }
+
       // Then add all new entries
       for (const entry of timetable) {
         const newEntryRef = doc(collection(db, "timetable"))
@@ -746,28 +775,28 @@ const GeneratorScreen = () => {
           start_time: entry.start_time,
           end_time: entry.end_time,
           created_at: serverTimestamp(),
+          // Add additional fields to help with display even if course is missing
+          course_name: entry.course_name,
+          room_name: entry.room_name,
+          lecturer_name: entry.lecturer_name,
         })
       }
-      
+
       await batch.commit()
-      
-      Alert.alert(
-        "Success", 
-        "Timetable saved successfully! Would you like to view it now?",
-        [
-          { text: "No", style: "cancel" },
-          { 
-            text: "Yes", 
-            onPress: () => {
-              // Navigate to the timetable screen
-              navigation.navigate("Timetable", { 
-                userRole: "admin", 
-                refresh: true 
-              })
-            }
-          }
-        ]
-      )
+
+      Alert.alert("Success", "Timetable saved successfully! Would you like to view it now?", [
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes",
+          onPress: () => {
+            // Navigate to the timetable screen
+            navigation.navigate("Timetable", {
+              userRole: "admin",
+              refresh: true,
+            })
+          },
+        },
+      ])
     } catch (error) {
       console.error("Error saving timetable:", error)
       Alert.alert("Error", "Failed to save timetable: " + error.message)
@@ -782,25 +811,19 @@ const GeneratorScreen = () => {
     const updatedConflicts = [...conflicts]
     updatedConflicts.splice(index, 1)
     setConflicts(updatedConflicts)
-    
+
     Alert.alert(
       "Conflict Resolution",
-      "In a full implementation, this would open a dialog to manually resolve the conflict. For now, the conflict has been acknowledged."
+      "In a full implementation, this would open a dialog to manually resolve the conflict. For now, the conflict has been acknowledged.",
     )
   }
 
   const renderProgramItem = ({ item }) => (
     <TouchableOpacity
-      style={[
-        styles.programItem,
-        selectedProgram?.id === item.id && styles.selectedProgramItem,
-      ]}
+      style={[styles.programItem, selectedProgram?.id === item.id && styles.selectedProgramItem]}
       onPress={() => handleProgramSelect(item)}
     >
-      <Text style={[
-        styles.programName,
-        selectedProgram?.id === item.id && styles.selectedProgramName,
-      ]}>
+      <Text style={[styles.programName, selectedProgram?.id === item.id && styles.selectedProgramName]}>
         {item.name}
       </Text>
       <Text style={styles.programDetails}>
@@ -811,17 +834,14 @@ const GeneratorScreen = () => {
 
   const renderCourseItem = ({ item }) => (
     <TouchableOpacity
-      style={[
-        styles.courseItem,
-        item.selected && styles.selectedCourseItem,
-      ]}
+      style={[styles.courseItem, item.selected && styles.selectedCourseItem]}
       onPress={() => toggleCourseSelection(item.id)}
     >
       <View style={styles.courseCheckbox}>
         {item.selected ? (
-          <Ionicons name="checkbox" size={24} color="#0066cc" />
+          <Ionicons name="checkbox" size={24} color={COLORS.primary} />
         ) : (
-          <Ionicons name="square-outline" size={24} color="#666666" />
+          <Ionicons name="square-outline" size={24} color={COLORS.textLight} />
         )}
       </View>
       <View style={styles.courseInfo}>
@@ -837,16 +857,17 @@ const GeneratorScreen = () => {
     <Card style={styles.conflictCard}>
       <Card.Content>
         <View style={styles.conflictHeader}>
-          <Ionicons name="alert-circle" size={24} color="#cc0000" style={styles.conflictIcon} />
+          <Ionicons name="alert-circle" size={24} color={COLORS.error} style={styles.conflictIcon} />
           <Text style={styles.conflictType}>
-            {item.type === "overlap" ? "Time Overlap" : item.type === "incomplete" ? "Incomplete Scheduling" : "Scheduling Issue"}
+            {item.type === "overlap"
+              ? "Time Overlap"
+              : item.type === "incomplete"
+                ? "Incomplete Scheduling"
+                : "Scheduling Issue"}
           </Text>
         </View>
         <Text style={styles.conflictMessage}>{item.message}</Text>
-        <TouchableOpacity
-          style={styles.resolveButton}
-          onPress={() => resolveConflict(item, index)}
-        >
+        <TouchableOpacity style={styles.resolveButton} onPress={() => resolveConflict(item, index)}>
           <Text style={styles.resolveButtonText}>Resolve Manually</Text>
         </TouchableOpacity>
       </Card.Content>
@@ -858,17 +879,17 @@ const GeneratorScreen = () => {
     if (settings.allowWeekends) {
       days.push("Saturday", "Sunday")
     }
-    
+
     return days.map((day) => {
       const dayEntries = timetable.filter((entry) => entry.day === day)
-      
+
       if (dayEntries.length === 0) return null
-      
+
       // Sort by start time
       dayEntries.sort((a, b) => {
         return a.start_time.localeCompare(b.start_time)
       })
-      
+
       return (
         <View key={day} style={styles.dayContainer}>
           <Text style={styles.dayHeader}>{day}</Text>
@@ -876,7 +897,7 @@ const GeneratorScreen = () => {
             <Card key={entry.id} style={styles.timetableCard}>
               <Card.Content>
                 <View style={styles.timetableTime}>
-                  <Ionicons name="time-outline" size={16} color="#0066cc" />
+                  <Ionicons name="time-outline" size={16} color={COLORS.primary} />
                   <Text style={styles.timeText}>
                     {entry.start_time} - {entry.end_time}
                   </Text>
@@ -884,15 +905,15 @@ const GeneratorScreen = () => {
                 <Text style={styles.courseTitle}>{entry.course_name}</Text>
                 <View style={styles.timetableDetails}>
                   <View style={styles.detailItem}>
-                    <Ionicons name="person-outline" size={14} color="#666666" />
+                    <Ionicons name="person-outline" size={14} color={COLORS.textLight} />
                     <Text style={styles.detailText}>{entry.lecturer_name}</Text>
                   </View>
                   <View style={styles.detailItem}>
-                    <Ionicons name="business-outline" size={14} color="#666666" />
+                    <Ionicons name="business-outline" size={14} color={COLORS.textLight} />
                     <Text style={styles.detailText}>{entry.room_name}</Text>
                   </View>
                   <View style={styles.detailItem}>
-                    <Ionicons name="school-outline" size={14} color="#666666" />
+                    <Ionicons name="school-outline" size={14} color={COLORS.textLight} />
                     <Text style={styles.detailText}>
                       Year {entry.year}, Semester {entry.semester}
                     </Text>
@@ -909,18 +930,18 @@ const GeneratorScreen = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0066cc" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>Loading programs...</Text>
       </View>
     )
   }
- 
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Timetable Generator</Text>
       </View>
-      
+
       <View style={styles.content}>
         {/* Program Selection */}
         <View style={styles.programsContainer}>
@@ -934,7 +955,7 @@ const GeneratorScreen = () => {
             contentContainerStyle={styles.programsList}
           />
         </View>
-        
+
         {selectedProgram ? (
           <>
             {/* Tabs */}
@@ -946,18 +967,11 @@ const GeneratorScreen = () => {
                 <Ionicons
                   name="settings-outline"
                   size={20}
-                  color={activeTab === "settings" ? "#0066cc" : "#666666"}
+                  color={activeTab === "settings" ? COLORS.primary : COLORS.textLight}
                 />
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === "settings" && styles.activeTabText,
-                  ]}
-                >
-                  Settings
-                </Text>
+                <Text style={[styles.tabText, activeTab === "settings" && styles.activeTabText]}>Settings</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.tab, activeTab === "conflicts" && styles.activeTab]}
                 onPress={() => setActiveTab("conflicts")}
@@ -965,18 +979,13 @@ const GeneratorScreen = () => {
                 <Ionicons
                   name="alert-circle-outline"
                   size={20}
-                  color={activeTab === "conflicts" ? "#0066cc" : "#666666"}
+                  color={activeTab === "conflicts" ? COLORS.primary : COLORS.textLight}
                 />
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === "conflicts" && styles.activeTabText,
-                  ]}
-                >
+                <Text style={[styles.tabText, activeTab === "conflicts" && styles.activeTabText]}>
                   Conflicts {conflicts.length > 0 && `(${conflicts.length})`}
                 </Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.tab, activeTab === "preview" && styles.activeTab]}
                 onPress={() => setActiveTab("preview")}
@@ -985,13 +994,7 @@ const GeneratorScreen = () => {
                 <Ionicons
                   name="calendar-outline"
                   size={20}
-                  color={
-                    activeTab === "preview"
-                      ? "#0066cc"
-                      : !showTimetable
-                      ? "#cccccc"
-                      : "#666666"
-                  }
+                  color={activeTab === "preview" ? COLORS.primary : !showTimetable ? "#cccccc" : COLORS.textLight}
                 />
                 <Text
                   style={[
@@ -1004,7 +1007,7 @@ const GeneratorScreen = () => {
                 </Text>
               </TouchableOpacity>
             </View>
-            
+
             {/* Tab Content */}
             <ScrollView style={styles.tabContent}>
               {activeTab === "settings" && (
@@ -1021,96 +1024,100 @@ const GeneratorScreen = () => {
                         nestedScrollEnabled={true}
                       />
                     ) : (
-                      <Text style={styles.noCourses}>
-                        No courses found for this program. Please add courses first.
-                      </Text>
+                      <Text style={styles.noCourses}>No courses found for this program. Please add courses first.</Text>
                     )}
                   </View>
-                  
+
                   {/* Generator Settings */}
                   <View style={styles.settingsContainer}>
                     <Text style={styles.sectionTitle}>Generation Settings</Text>
-                    
+
                     <View style={styles.settingItem}>
                       <Text style={styles.settingLabel}>Prioritize Room Size</Text>
                       <Switch
                         value={settings.prioritizeRoomSize}
                         onValueChange={(value) => updateSetting("prioritizeRoomSize", value)}
-                        trackColor={{ false: "#cccccc", true: "#0066cc" }}
+                        trackColor={{ false: "#cccccc", true: COLORS.primary }}
+                        thumbColor={settings.prioritizeRoomSize ? COLORS.secondary : "#f4f3f4"}
                       />
                     </View>
-                    
+
                     <View style={styles.settingItem}>
                       <Text style={styles.settingLabel}>Avoid Back-to-Back Classes for Lecturers</Text>
                       <Switch
                         value={settings.avoidBackToBack}
                         onValueChange={(value) => updateSetting("avoidBackToBack", value)}
-                        trackColor={{ false: "#cccccc", true: "#0066cc" }}
+                        trackColor={{ false: "#cccccc", true: COLORS.primary }}
+                        thumbColor={settings.avoidBackToBack ? COLORS.secondary : "#f4f3f4"}
                       />
                     </View>
-                    
+
                     <View style={styles.settingItem}>
                       <Text style={styles.settingLabel}>Balance Lecturer Workload</Text>
                       <Switch
                         value={settings.balanceLecturerLoad}
                         onValueChange={(value) => updateSetting("balanceLecturerLoad", value)}
-                        trackColor={{ false: "#cccccc", true: "#0066cc" }}
+                        trackColor={{ false: "#cccccc", true: COLORS.primary }}
+                        thumbColor={settings.balanceLecturerLoad ? COLORS.secondary : "#f4f3f4"}
                       />
                     </View>
-                    
+
                     <View style={styles.settingItem}>
                       <Text style={styles.settingLabel}>Spread Courses Across Days</Text>
                       <Switch
                         value={settings.spreadCoursesAcrossDays}
                         onValueChange={(value) => updateSetting("spreadCoursesAcrossDays", value)}
-                        trackColor={{ false: "#cccccc", true: "#0066cc" }}
+                        trackColor={{ false: "#cccccc", true: COLORS.primary }}
+                        thumbColor={settings.spreadCoursesAcrossDays ? COLORS.secondary : "#f4f3f4"}
                       />
                     </View>
-                    
+
                     <View style={styles.settingItem}>
                       <Text style={styles.settingLabel}>Respect Credit Hours Exactly</Text>
                       <Switch
                         value={settings.respectCreditHours}
                         onValueChange={(value) => updateSetting("respectCreditHours", value)}
-                        trackColor={{ false: "#cccccc", true: "#0066cc" }}
+                        trackColor={{ false: "#cccccc", true: COLORS.primary }}
+                        thumbColor={settings.respectCreditHours ? COLORS.secondary : "#f4f3f4"}
                       />
                     </View>
-                    
+
                     <View style={styles.settingItem}>
                       <Text style={styles.settingLabel}>Allow Weekend Classes</Text>
                       <Switch
                         value={settings.allowWeekends}
                         onValueChange={(value) => updateSetting("allowWeekends", value)}
-                        trackColor={{ false: "#cccccc", true: "#0066cc" }}
+                        trackColor={{ false: "#cccccc", true: COLORS.primary }}
+                        thumbColor={settings.allowWeekends ? COLORS.secondary : "#f4f3f4"}
                       />
                     </View>
-                    
+
                     <View style={styles.settingItem}>
                       <Text style={styles.settingLabel}>Maximum Daily Hours</Text>
                       <TextInput
                         style={styles.numberInput}
                         value={settings.maxDailyHours.toString()}
                         onChangeText={(value) => {
-                          const numValue = parseInt(value) || 0
+                          const numValue = Number.parseInt(value) || 0
                           updateSetting("maxDailyHours", Math.min(Math.max(numValue, 0), 12))
                         }}
                         keyboardType="number-pad"
                       />
                     </View>
-                    
+
                     <View style={styles.settingItem}>
                       <Text style={styles.settingLabel}>Max Sessions Per Day Per Course</Text>
                       <TextInput
                         style={styles.numberInput}
                         value={settings.maxSessionsPerDay.toString()}
                         onChangeText={(value) => {
-                          const numValue = parseInt(value) || 0
+                          const numValue = Number.parseInt(value) || 0
                           updateSetting("maxSessionsPerDay", Math.min(Math.max(numValue, 1), 3))
                         }}
                         keyboardType="number-pad"
                       />
                     </View>
-                    
+
                     <View style={styles.settingItem}>
                       <Text style={styles.settingLabel}>Preferred Start Time</Text>
                       <TextInput
@@ -1120,7 +1127,7 @@ const GeneratorScreen = () => {
                         placeholder="HH:MM"
                       />
                     </View>
-                    
+
                     <View style={styles.settingItem}>
                       <Text style={styles.settingLabel}>Preferred End Time</Text>
                       <TextInput
@@ -1131,42 +1138,31 @@ const GeneratorScreen = () => {
                       />
                     </View>
                   </View>
-                  
-                  <TouchableOpacity
-                    style={styles.generateButton}
-                    onPress={generateTimetable}
-                    disabled={isGenerating}
-                  >
+
+                  <TouchableOpacity style={styles.generateButton} onPress={generateTimetable} disabled={isGenerating}>
                     {isGenerating ? (
-                      <ActivityIndicator size="small" color="#ffffff" />
+                      <ActivityIndicator size="small" color={COLORS.secondary} />
                     ) : (
                       <Text style={styles.generateButtonText}>Generate Timetable</Text>
                     )}
                   </TouchableOpacity>
                 </View>
               )}
-              
+
               {activeTab === "conflicts" && (
                 <View>
                   {isGenerating ? (
                     <View style={styles.generatingContainer}>
-                      <ActivityIndicator size="large" color="#0066cc" />
+                      <ActivityIndicator size="large" color={COLORS.primary} />
                       <Text style={styles.generatingText}>{generationStep}</Text>
                       <View style={styles.progressContainer}>
-                        <View
-                          style={[
-                            styles.progressBar,
-                            { width: `${generationProgress}%` },
-                          ]}
-                        />
+                        <View style={[styles.progressBar, { width: `${generationProgress}%` }]} />
                       </View>
                       <Text style={styles.progressText}>{generationProgress}%</Text>
                     </View>
                   ) : conflicts.length > 0 ? (
                     <View>
-                      <Text style={styles.conflictsTitle}>
-                        {conflicts.length} Conflicts Detected
-                      </Text>
+                      <Text style={styles.conflictsTitle}>{conflicts.length} Conflicts Detected</Text>
                       <Text style={styles.conflictsSubtitle}>
                         These conflicts need to be resolved before the timetable can be finalized
                       </Text>
@@ -1177,7 +1173,7 @@ const GeneratorScreen = () => {
                         scrollEnabled={false}
                         nestedScrollEnabled={true}
                       />
-                      
+
                       {timetable.length > 0 && (
                         <TouchableOpacity
                           style={styles.previewButton}
@@ -1186,20 +1182,16 @@ const GeneratorScreen = () => {
                             setActiveTab("preview")
                           }}
                         >
-                          <Text style={styles.previewButtonText}>
-                            Preview Current Timetable
-                          </Text>
+                          <Text style={styles.previewButtonText}>Preview Current Timetable</Text>
                         </TouchableOpacity>
                       )}
                     </View>
                   ) : (
                     <View style={styles.noConflictsContainer}>
-                      <Ionicons name="checkmark-circle" size={64} color="#4CAF50" />
+                      <Ionicons name="checkmark-circle" size={64} color={COLORS.success} />
                       <Text style={styles.noConflictsText}>No Conflicts Detected</Text>
-                      <Text style={styles.noConflictsSubtext}>
-                        Your timetable has been generated successfully
-                      </Text>
-                      
+                      <Text style={styles.noConflictsSubtext}>Your timetable has been generated successfully</Text>
+
                       <TouchableOpacity
                         style={styles.previewButton}
                         onPress={() => {
@@ -1207,34 +1199,26 @@ const GeneratorScreen = () => {
                           setActiveTab("preview")
                         }}
                       >
-                        <Text style={styles.previewButtonText}>
-                          View Generated Timetable
-                        </Text>
+                        <Text style={styles.previewButtonText}>View Generated Timetable</Text>
                       </TouchableOpacity>
                     </View>
                   )}
                 </View>
               )}
-              
+
               {activeTab === "preview" && showTimetable && (
                 <View>
                   <View style={styles.previewHeader}>
-                    <Text style={styles.previewTitle}>
-                      {selectedProgram.name} Timetable
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.saveButton}
-                      onPress={saveTimetable}
-                      disabled={loading}
-                    >
+                    <Text style={styles.previewTitle}>{selectedProgram.name} Timetable</Text>
+                    <TouchableOpacity style={styles.saveButton} onPress={saveTimetable} disabled={loading}>
                       {loading ? (
-                        <ActivityIndicator size="small" color="#ffffff" />
+                        <ActivityIndicator size="small" color={COLORS.secondary} />
                       ) : (
                         <Text style={styles.saveButtonText}>Save Timetable</Text>
                       )}
                     </TouchableOpacity>
                   </View>
-                  
+
                   {renderTimetableByDay()}
                 </View>
               )}
@@ -1244,9 +1228,7 @@ const GeneratorScreen = () => {
           <View style={styles.noProgramContainer}>
             <Ionicons name="calendar-outline" size={64} color="#cccccc" />
             <Text style={styles.noProgramText}>Select a Program</Text>
-            <Text style={styles.noProgramSubtext}>
-              Choose a program to generate a timetable
-            </Text>
+            <Text style={styles.noProgramSubtext}>Choose a program to generate a timetable</Text>
           </View>
         )}
       </View>
@@ -1257,18 +1239,19 @@ const GeneratorScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: COLORS.background,
   },
   header: {
     padding: 16,
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.primary,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: COLORS.border,
   },
   title: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.secondary,
+    textAlign: "center",
   },
   content: {
     flex: 1,
@@ -1277,23 +1260,27 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: COLORS.background,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: "#666666",
+    color: COLORS.textLight,
   },
   programsContainer: {
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.cardBackground,
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: COLORS.border,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.primary,
     marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.secondary,
+    paddingLeft: 8,
   },
   programsList: {
     paddingRight: 16,
@@ -1304,24 +1291,26 @@ const styles = StyleSheet.create({
     padding: 12,
     marginRight: 12,
     minWidth: 150,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   selectedProgramItem: {
     backgroundColor: "#e6f0ff",
-    borderColor: "#0066cc",
+    borderColor: COLORS.primary,
     borderWidth: 1,
   },
   programName: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.text,
     marginBottom: 4,
   },
   selectedProgramName: {
-    color: "#0066cc",
+    color: COLORS.primary,
   },
   programDetails: {
     fontSize: 12,
-    color: "#666666",
+    color: COLORS.textLight,
   },
   noProgramContainer: {
     flex: 1,
@@ -1332,20 +1321,20 @@ const styles = StyleSheet.create({
   noProgramText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#666666",
+    color: COLORS.textLight,
     marginTop: 16,
   },
   noProgramSubtext: {
     fontSize: 14,
-    color: "#999999",
+    color: COLORS.textLight,
     marginTop: 8,
     textAlign: "center",
   },
   tabsContainer: {
     flexDirection: "row",
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.cardBackground,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: COLORS.border,
   },
   tab: {
     flex: 1,
@@ -1356,15 +1345,15 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     borderBottomWidth: 2,
-    borderBottomColor: "#0066cc",
+    borderBottomColor: COLORS.primary,
   },
   tabText: {
     fontSize: 14,
-    color: "#666666",
+    color: COLORS.textLight,
     marginLeft: 4,
   },
   activeTabText: {
-    color: "#0066cc",
+    color: COLORS.primary,
     fontWeight: "bold",
   },
   disabledTabText: {
@@ -1380,15 +1369,15 @@ const styles = StyleSheet.create({
   courseItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: COLORS.border,
   },
   selectedCourseItem: {
-    borderColor: "#0066cc",
+    borderColor: COLORS.primary,
     backgroundColor: "#f5f9ff",
   },
   courseCheckbox: {
@@ -1400,25 +1389,27 @@ const styles = StyleSheet.create({
   courseName: {
     fontSize: 16,
     fontWeight: "500",
-    color: "#333333",
+    color: COLORS.text,
     marginBottom: 4,
   },
   courseDetails: {
     fontSize: 12,
-    color: "#666666",
+    color: COLORS.textLight,
   },
   noCourses: {
     fontSize: 14,
-    color: "#666666",
+    color: COLORS.textLight,
     fontStyle: "italic",
     textAlign: "center",
     marginTop: 16,
   },
   settingsContainer: {
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 8,
     padding: 16,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   settingItem: {
     flexDirection: "row",
@@ -1430,7 +1421,7 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     fontSize: 14,
-    color: "#333333",
+    color: COLORS.text,
     flex: 1,
     marginRight: 16,
   },
@@ -1441,6 +1432,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     width: 60,
     textAlign: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   timeInput: {
     backgroundColor: "#f5f5f5",
@@ -1449,29 +1442,38 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     width: 80,
     textAlign: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   generateButton: {
-    backgroundColor: "#0066cc",
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
     padding: 16,
     alignItems: "center",
     marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   generateButtonText: {
-    color: "#ffffff",
+    color: COLORS.secondary,
     fontSize: 16,
     fontWeight: "bold",
   },
   generatingContainer: {
     alignItems: "center",
     padding: 24,
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 8,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   generatingText: {
     fontSize: 16,
-    color: "#333333",
+    color: COLORS.text,
     marginTop: 16,
     marginBottom: 24,
   },
@@ -1484,28 +1486,29 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: "100%",
-    backgroundColor: "#0066cc",
+    backgroundColor: COLORS.primary,
   },
   progressText: {
     fontSize: 14,
-    color: "#666666",
+    color: COLORS.textLight,
     marginTop: 8,
   },
   conflictsTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#cc0000",
+    color: COLORS.error,
     marginBottom: 8,
   },
   conflictsSubtitle: {
     fontSize: 14,
-    color: "#666666",
+    color: COLORS.textLight,
     marginBottom: 16,
   },
   conflictCard: {
     marginBottom: 12,
     borderLeftWidth: 4,
-    borderLeftColor: "#cc0000",
+    borderLeftColor: COLORS.error,
+    borderRadius: 8,
   },
   conflictHeader: {
     flexDirection: "row",
@@ -1518,11 +1521,11 @@ const styles = StyleSheet.create({
   conflictType: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#cc0000",
+    color: COLORS.error,
   },
   conflictMessage: {
     fontSize: 14,
-    color: "#333333",
+    color: COLORS.text,
     marginBottom: 12,
   },
   resolveButton: {
@@ -1532,37 +1535,44 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   resolveButtonText: {
-    color: "#0066cc",
+    color: COLORS.primary,
     fontWeight: "500",
   },
   noConflictsContainer: {
     alignItems: "center",
     padding: 24,
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   noConflictsText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#4CAF50",
+    color: COLORS.success,
     marginTop: 16,
   },
   noConflictsSubtext: {
     fontSize: 14,
-    color: "#666666",
+    color: COLORS.textLight,
     marginTop: 8,
     marginBottom: 24,
     textAlign: "center",
   },
   previewButton: {
-    backgroundColor: "#0066cc",
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
     padding: 12,
     alignItems: "center",
     marginTop: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   previewButtonText: {
-    color: "#ffffff",
+    color: COLORS.secondary,
     fontSize: 14,
     fontWeight: "bold",
   },
@@ -1575,13 +1585,18 @@ const styles = StyleSheet.create({
   previewTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.primary,
   },
   saveButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: COLORS.success,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1,
+    elevation: 2,
   },
   saveButtonText: {
     color: "#ffffff",
@@ -1593,14 +1608,19 @@ const styles = StyleSheet.create({
   dayHeader: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#0066cc",
+    color: COLORS.primary,
     marginBottom: 8,
-    backgroundColor: "#e6f0ff",
+    backgroundColor: "#e6ffe6",
     padding: 8,
     borderRadius: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
   },
   timetableCard: {
     marginBottom: 8,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
   },
   timetableTime: {
     flexDirection: "row",
@@ -1609,14 +1629,14 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 14,
-    color: "#0066cc",
+    color: COLORS.primary,
     fontWeight: "500",
     marginLeft: 4,
   },
   courseTitle: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.text,
     marginBottom: 8,
   },
   timetableDetails: {
@@ -1629,7 +1649,7 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: "#666666",
+    color: COLORS.textLight,
     marginLeft: 4,
   },
 })
