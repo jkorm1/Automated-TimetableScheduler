@@ -20,6 +20,22 @@ import ProgramManagementScreen from "./admin/ProgramManagementScreen"
 import CourseManagementScreen from "./admin/CourseManagementScreen"
 import CustomDrawerContent from "../app/CustomDrawerContent" // We'll create this component
 
+// KNUST color theme
+const COLORS = {
+  primary: "#006400", // Dark green
+  secondary: "#FFD700", // Gold/Yellow
+  background: "#F5F5F5",
+  cardBackground: "#FFFFFF",
+  text: "#333333",
+  textLight: "#666666",
+  accent: "#008000", // Medium green
+  border: "#E0E0E0",
+  success: "#4CAF50",
+  warning: "#FFC107",
+  error: "#F44336",
+  info: "#2196F3",
+}
+
 const Tab = createBottomTabNavigator()
 const Drawer = createDrawerNavigator()
 
@@ -205,7 +221,90 @@ const styles = StyleSheet.create({
   drawerButton: {
     marginLeft: 15,
     padding: 5,
-  }
+  },
+  tabBar: {
+    backgroundColor: COLORS.cardBackground,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  tabBarLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  tabBarIcon: {
+    marginTop: 4,
+  },
+  drawerContent: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  drawerHeader: {
+    backgroundColor: COLORS.primary,
+    padding: 16,
+    paddingTop: 48,
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  drawerLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: COLORS.secondary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  drawerLogoText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: COLORS.primary,
+  },
+  drawerTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: COLORS.secondary,
+  },
+  drawerSubtitle: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    marginTop: 4,
+  },
+  drawerItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  drawerItemActive: {
+    backgroundColor: "#e6ffe6",
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
+  },
+  drawerItemIcon: {
+    marginRight: 16,
+    width: 24,
+    alignItems: "center",
+  },
+  drawerItemText: {
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  drawerItemTextActive: {
+    color: COLORS.primary,
+    fontWeight: "bold",
+  },
+  drawerFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  drawerFooterText: {
+    fontSize: 12,
+    color: COLORS.textLight,
+    textAlign: "center",
+  },
 })
-
 export default HomeScreen

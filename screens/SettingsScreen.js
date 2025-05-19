@@ -21,6 +21,22 @@ import {
   updateDoc, 
 } from 'firebase/firestore';
 
+// KNUST color theme
+const COLORS = {
+  primary: "#006400", // Dark green
+  secondary: "#FFD700", // Gold/Yellow
+  background: "#F5F5F5",
+  cardBackground: "#FFFFFF",
+  text: "#333333",
+  textLight: "#666666",
+  accent: "#008000", // Medium green
+  border: "#E0E0E0",
+  success: "#4CAF50",
+  warning: "#FFC107",
+  error: "#F44336",
+  info: "#2196F3",
+}
+
 const Stack = createNativeStackNavigator();
 
 const SettingsScreen = ({ route }) => {
@@ -221,110 +237,121 @@ const NotificationsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: COLORS.background,
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.background,
   },
   header: {
     padding: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: COLORS.primary,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: COLORS.border,
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333333',
+    fontWeight: "bold",
+    color: COLORS.secondary,
   },
   headerSubtitle: {
     fontSize: 16,
-    color: '#666666',
+    color: "#FFFFFF",
     marginTop: 4,
   },
   profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.cardBackground,
     padding: 16,
     marginTop: 16,
     marginHorizontal: 16,
     borderRadius: 8,
     elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
   },
   profileAvatar: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#0066cc',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: COLORS.secondary,
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 16,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
   },
   profileInitials: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    fontWeight: "bold",
+    color: COLORS.primary,
   },
   profileInfo: {
     flex: 1,
   },
   profileName: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333333',
+    fontWeight: "bold",
+    color: COLORS.text,
   },
   profileEmail: {
     fontSize: 14,
-    color: '#666666',
+    color: COLORS.textLight,
     marginTop: 2,
   },
   profileRole: {
     fontSize: 14,
-    color: '#0066cc',
+    color: COLORS.primary,
     marginTop: 4,
+    fontWeight: "500",
   },
   section: {
-    backgroundColor: '#ffffff',
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 8,
     marginHorizontal: 16,
     marginTop: 24,
     padding: 16,
     elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 16,
-    color: '#333333',
+    color: COLORS.primary,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: 8,
   },
   settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: "#f0f0f0",
   },
   settingText: {
     flex: 1,
     fontSize: 16,
-    color: '#333333',
+    color: COLORS.text,
     marginLeft: 16,
   },
   signOutButton: {
-    backgroundColor: '#ff3b30',
+    backgroundColor: COLORS.error,
     borderRadius: 8,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     margin: 16,
   },
   signOutButtonText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
+    color: "#ffffff",
+    fontWeight: "bold",
     fontSize: 16,
   },
-});
+})
 
 export default SettingsScreen;

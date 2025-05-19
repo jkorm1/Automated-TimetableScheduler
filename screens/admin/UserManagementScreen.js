@@ -29,6 +29,22 @@ import {
   getDoc,
 } from "firebase/firestore"
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth"
+ 
+// KNUST color theme
+const COLORS = {
+  primary: "#006400", // Dark green
+  secondary: "#FFD700", // Gold/Yellow
+  background: "#F5F5F5",
+  cardBackground: "#FFFFFF",
+  text: "#333333",
+  textLight: "#666666",
+  accent: "#008000", // Medium green
+  border: "#E0E0E0",
+  success: "#4CAF50",
+  warning: "#FFC107",
+  error: "#F44336",
+  info: "#2196F3",
+}
 
 const UserManagementScreen = () => {
   const [users, setUsers] = useState([])
@@ -542,47 +558,51 @@ const UserManagementScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 16,
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.primary,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: COLORS.border,
   },
   title: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.secondary,
   },
   addButton: {
-    backgroundColor: "#0066cc",
+    backgroundColor: COLORS.secondary,
     width: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.cardBackground,
     margin: 16,
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: COLORS.border,
   },
   searchIcon: {
     marginRight: 8,
+    color: COLORS.primary,
   },
   searchInput: {
     flex: 1,
     height: 40,
     fontSize: 16,
+    color: COLORS.text,
   },
   loader: {
     marginTop: 32,
@@ -593,6 +613,9 @@ const styles = StyleSheet.create({
   userCard: {
     marginBottom: 16,
     elevation: 2,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
   },
   userHeader: {
     flexDirection: "row",
@@ -603,7 +626,7 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.text,
   },
   userActions: {
     flexDirection: "row",
@@ -621,18 +644,20 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: "#666666",
+    color: COLORS.textLight,
     marginLeft: 8,
   },
   resetButton: {
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "#e6ffe6",
     padding: 8,
     borderRadius: 4,
     alignItems: "center",
     marginTop: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
   },
   resetButtonText: {
-    color: "#0066cc",
+    color: COLORS.primary,
     fontWeight: "bold",
   },
   emptyContainer: {
@@ -644,13 +669,14 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#666666",
+    color: COLORS.textLight,
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
     color: "#999999",
     marginTop: 8,
+    textAlign: "center",
   },
   modalContainer: {
     flex: 1,
@@ -660,33 +686,39 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: "90%",
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 8,
     padding: 16,
     elevation: 5,
+    borderTopWidth: 4,
+    borderTopColor: COLORS.primary,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.primary,
     marginBottom: 16,
     textAlign: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: 8,
   },
   input: {
     height: 50,
-    borderColor: "#cccccc",
+    borderColor: COLORS.border,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 16,
     marginBottom: 16,
     fontSize: 16,
+    backgroundColor: "#FFFFFF",
   },
   pickerContainer: {
     marginBottom: 16,
   },
   pickerLabel: {
     fontSize: 16,
-    color: "#333333",
+    color: COLORS.text,
     marginBottom: 8,
   },
   roleButtons: {
@@ -697,20 +729,20 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 10,
     borderWidth: 1,
-    borderColor: "#cccccc",
+    borderColor: COLORS.border,
     alignItems: "center",
     marginHorizontal: 4,
     borderRadius: 4,
   },
   roleButtonActive: {
-    backgroundColor: "#0066cc",
-    borderColor: "#0066cc",
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   roleButtonText: {
-    color: "#333333",
+    color: COLORS.text,
   },
   roleButtonTextActive: {
-    color: "#ffffff",
+    color: COLORS.secondary,
     fontWeight: "bold",
   },
   programPicker: {
@@ -719,25 +751,28 @@ const styles = StyleSheet.create({
   programButton: {
     padding: 10,
     borderWidth: 1,
-    borderColor: "#cccccc",
+    borderColor: COLORS.border,
     marginVertical: 4,
     borderRadius: 4,
   },
   programButtonActive: {
-    backgroundColor: "#0066cc",
-    borderColor: "#0066cc",
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   programButtonText: {
-    color: "#333333",
+    color: COLORS.text,
   },
   programButtonTextActive: {
-    color: "#ffffff",
+    color: COLORS.secondary,
     fontWeight: "bold",
   },
   modalButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
   },
   modalButton: {
     flex: 1,
@@ -750,15 +785,15 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   cancelButtonText: {
-    color: "#333333",
+    color: COLORS.text,
     fontWeight: "bold",
   },
   saveButton: {
-    backgroundColor: "#0066cc",
+    backgroundColor: COLORS.primary,
     marginLeft: 8,
   },
   saveButtonText: {
-    color: "#ffffff",
+    color: COLORS.secondary,
     fontWeight: "bold",
   },
 })

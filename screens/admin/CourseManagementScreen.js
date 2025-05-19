@@ -30,6 +30,22 @@ import {
   getDoc,
 } from "firebase/firestore"
 
+// KNUST color theme
+const COLORS = {
+  primary: "#006400", // Dark green
+  secondary: "#FFD700", // Gold/Yellow
+  background: "#F5F5F5",
+  cardBackground: "#FFFFFF",
+  text: "#333333",
+  textLight: "#666666",
+  accent: "#008000", // Medium green
+  border: "#E0E0E0",
+  success: "#4CAF50",
+  warning: "#FFC107",
+  error: "#F44336",
+  info: "#2196F3",
+}
+
 const CourseManagementScreen = () => {
   const [courses, setCourses] = useState([])
   const [programs, setPrograms] = useState([])
@@ -573,50 +589,56 @@ const CourseManagementScreen = () => {
   )
 }
 
+
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 16,
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.primary,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: COLORS.border,
   },
   title: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.secondary,
   },
   addButton: {
-    backgroundColor: "#0066cc",
+    backgroundColor: COLORS.secondary,
     width: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.cardBackground,
     margin: 16,
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: COLORS.border,
   },
   searchIcon: {
     marginRight: 8,
+    color: COLORS.primary,
   },
   searchInput: {
     flex: 1,
     height: 40,
     fontSize: 16,
+    color: COLORS.text,
   },
   loader: {
     marginTop: 32,
@@ -627,6 +649,9 @@ const styles = StyleSheet.create({
   courseCard: {
     marginBottom: 16,
     elevation: 2,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
   },
   courseHeader: {
     flexDirection: "row",
@@ -637,12 +662,12 @@ const styles = StyleSheet.create({
   courseName: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.text,
     marginBottom: 4,
   },
   courseCode: {
     fontSize: 14,
-    color: "#0066cc",
+    color: COLORS.primary,
     fontWeight: "500",
   },
   courseActions: {
@@ -661,7 +686,7 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: "#666666",
+    color: COLORS.textLight,
     marginLeft: 8,
   },
   emptyContainer: {
@@ -673,13 +698,14 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#666666",
+    color: COLORS.textLight,
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
     color: "#999999",
     marginTop: 8,
+    textAlign: "center",
   },
   modalContainer: {
     flex: 1,
@@ -690,30 +716,39 @@ const styles = StyleSheet.create({
   modalContent: {
     width: "90%",
     maxHeight: "80%",
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 8,
     padding: 16,
     elevation: 5,
+    borderTopWidth: 4,
+    borderTopColor: COLORS.primary,
+  },
+  modalScrollContent: {
+    paddingBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.primary,
     marginBottom: 16,
     textAlign: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: 8,
   },
   input: {
     height: 50,
-    borderColor: "#cccccc",
+    borderColor: COLORS.border,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 16,
     marginBottom: 16,
     fontSize: 16,
+    backgroundColor: "#FFFFFF",
   },
   inputLabel: {
     fontSize: 14,
-    color: "#666666",
+    color: COLORS.textLight,
     marginBottom: 8,
   },
   formRow: {
@@ -730,24 +765,21 @@ const styles = StyleSheet.create({
   pickerOption: {
     padding: 12,
     borderWidth: 1,
-    borderColor: "#cccccc",
+    borderColor: COLORS.border,
     borderRadius: 8,
     marginBottom: 8,
   },
   pickerOptionSelected: {
-    borderColor: "#0066cc",
-    backgroundColor: "#e6f0ff",
+    borderColor: COLORS.primary,
+    backgroundColor: "#e6ffe6",
   },
   pickerOptionText: {
     fontSize: 16,
-    color: "#333333",
+    color: COLORS.text,
   },
   pickerOptionTextSelected: {
-    color: "#0066cc",
+    color: COLORS.primary,
     fontWeight: "bold",
-  },
-  modalScrollContent: {
-    paddingBottom: 20, // Add some padding at the bottom
   },
   modalButtons: {
     flexDirection: "row",
@@ -755,7 +787,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
+    borderTopColor: COLORS.border,
   },
   modalButton: {
     flex: 1,
@@ -768,17 +800,16 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   cancelButtonText: {
-    color: "#333333",
+    color: COLORS.text,
     fontWeight: "bold",
   },
   saveButton: {
-    backgroundColor: "#0066cc",
+    backgroundColor: COLORS.primary,
     marginLeft: 8,
   },
   saveButtonText: {
-    color: "#ffffff",
+    color: COLORS.secondary,
     fontWeight: "bold",
   },
 })
-
 export default CourseManagementScreen

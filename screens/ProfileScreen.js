@@ -20,6 +20,22 @@ import { updatePassword, reauthenticateWithCredential, EmailAuthProvider, update
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import * as ImagePicker from "expo-image-picker"
 
+// KNUST color theme
+const COLORS = {
+  primary: "#006400", // Dark green
+  secondary: "#FFD700", // Gold/Yellow
+  background: "#F5F5F5",
+  cardBackground: "#FFFFFF",
+  text: "#333333",
+  textLight: "#666666",
+  accent: "#008000", // Medium green
+  border: "#E0E0E0",
+  success: "#4CAF50",
+  warning: "#FFC107",
+  error: "#F44336",
+  info: "#2196F3",
+}
+
 const ProfileScreen = ({ navigation }) => {
   const [userData, setUserData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -404,19 +420,20 @@ const ProfileScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: COLORS.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: COLORS.background,
   },
   header: {
     alignItems: "center",
     padding: 24,
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.primary,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: COLORS.border,
   },
   profileImageContainer: {
     position: "relative",
@@ -426,25 +443,29 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
+    borderWidth: 3,
+    borderColor: COLORS.secondary,
   },
   profileImagePlaceholder: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: "#0066cc",
+    backgroundColor: COLORS.secondary,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
   },
   profileImagePlaceholderText: {
     fontSize: 40,
     fontWeight: "bold",
-    color: "#ffffff",
+    color: COLORS.primary,
   },
   editImageButton: {
     position: "absolute",
     bottom: 0,
     right: 0,
-    backgroundColor: "#0066cc",
+    backgroundColor: COLORS.secondary,
     width: 30,
     height: 30,
     borderRadius: 15,
@@ -456,11 +477,11 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#333333",
+    color: "#FFFFFF",
     marginBottom: 8,
   },
   roleBadge: {
-    backgroundColor: "#e6f0ff",
+    backgroundColor: COLORS.secondary,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 16,
@@ -468,49 +489,55 @@ const styles = StyleSheet.create({
   },
   roleText: {
     fontSize: 14,
-    color: "#0066cc",
+    color: COLORS.primary,
     fontWeight: "bold",
   },
   programText: {
     fontSize: 16,
-    color: "#666666",
+    color: "#FFFFFF",
   },
   card: {
     margin: 16,
     elevation: 2,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333333",
+    color: COLORS.primary,
     marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: 8,
   },
   inputContainer: {
     marginBottom: 16,
   },
   inputLabel: {
     fontSize: 14,
-    color: "#666666",
+    color: COLORS.textLight,
     marginBottom: 8,
   },
   input: {
     height: 50,
-    borderColor: "#cccccc",
+    borderColor: COLORS.border,
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 16,
     fontSize: 16,
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.cardBackground,
   },
   updateButton: {
-    backgroundColor: "#0066cc",
+    backgroundColor: COLORS.primary,
     padding: 12,
     borderRadius: 8,
     alignItems: "center",
     marginTop: 8,
   },
   updateButtonText: {
-    color: "#ffffff",
+    color: COLORS.secondary,
     fontWeight: "bold",
     fontSize: 16,
   },
@@ -523,9 +550,10 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     marginRight: 8,
+    color: COLORS.primary,
   },
   passwordButtonText: {
-    color: "#0066cc",
+    color: COLORS.primary,
     fontSize: 16,
     fontWeight: "500",
   },
@@ -545,18 +573,17 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   cancelButtonText: {
-    color: "#333333",
+    color: COLORS.text,
     fontWeight: "bold",
   },
   saveButton: {
-    backgroundColor: "#0066cc",
+    backgroundColor: COLORS.primary,
     marginLeft: 8,
   },
   saveButtonText: {
-    color: "#ffffff",
+    color: COLORS.secondary,
     fontWeight: "bold",
   },
 })
 
 export default ProfileScreen
-
